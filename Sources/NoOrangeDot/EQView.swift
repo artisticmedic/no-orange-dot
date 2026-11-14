@@ -17,7 +17,7 @@ struct EQView: View {
 
     private var curveCard: some View {
         Card {
-            Row(title: "Equalizer", caption: readout ?? "Drag a dot to shape the sound. Every change can be undone.") {
+            Row(title: "Equalizer", caption: readout ?? "Drag a dot to adjust a band.") {
                 IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { if let last = engine.history.first { engine.restore(last); selected = nil } }
                     .disabled(engine.history.isEmpty).opacity(engine.history.isEmpty ? 0.35 : 1)
                 if engine.history.isEmpty {
@@ -54,7 +54,7 @@ struct EQView: View {
 
     private var presetCard: some View {
         Card {
-            Row(title: "Curve", caption: presetName == "Custom" ? "Your own curve. Changes are saved to its history." : "A starting point for the EQ.") {
+            Row(title: "Curve", caption: nil) {
                 HStack(spacing: 8) {
                     Menu {
                         Button("Warm voice") { engine.bands = Presets.warm; selected = nil }
@@ -82,7 +82,7 @@ struct EQView: View {
 
     private var voiceCard: some View {
         Card {
-            Row(title: "See your voice", caption: engine.monitoring ? "The mic is open while this is on." : "Opens the mic and draws your voice behind the curve.") {
+            Row(title: "See your voice", caption: engine.monitoring ? "The mic is open while this is on." : "Shows your live voice behind the curve. Opens the mic.") {
                 Toggle("See your voice", isOn: $engine.monitoring).labelsHidden().toggleStyle(.switch)
             }
             if live {

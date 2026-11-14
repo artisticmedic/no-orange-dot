@@ -3,7 +3,7 @@ import Foundation
 /// Command-line control, so scripts and agents can do everything the windows can.
 /// Settings verbs edit config.json, which the running app re-reads within half a second.
 enum CLI {
-    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "open", "help", "--help", "-h"]
+    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "crashes", "open", "help", "--help", "-h"]
 
     static let help = """
     nod: control \(Brand.name)
@@ -26,6 +26,8 @@ enum CLI {
       nod limiter on|off [ceiling=-1]    catch peaks before they clip
       nod record start|stop|toggle
       nod shortcut mute|record <keys>|off   system-wide shortcut, e.g. ctrl+opt+cmd+m
+      nod crashes                        crash reports macOS has written for this app; nothing is ever sent
+      nod crashes show <n>               the short summary that would go into a GitHub issue
       nod update                         look for a new version
       nod update install                 download it, check who signed it, and open the installer
       nod update auto on|off             look once a day
@@ -248,6 +250,19 @@ enum CLI {
                 Command.send("history-restore \(n)"); return settle()
             case "clear": Command.send("history-clear"); return 0
             default: return fail("Use: nod history, nod history restore <n>, or nod history clear")
+            }
+        case "crashes":
+            let list = CrashReport.all()
+            switch rest.first {
+            case nil:
+                if list.isEmpty { print("No crash reports.") }
+                for (i, r) in list.enumerated() { print("\(i + 1)  \(r.date.formatted(date: .abbreviated, time: .shortened))  \(r.appVersion)  \(r.exception)") }
+                return 0
+            case "show":
+                guard rest.count > 1, let n = Int(rest[1]), list.indices.contains(n - 1) else { return fail("Use: nod crashes show <n>, with a number from nod crashes") }
+                print(list[n - 1].summary); print("\nFull report: \(list[n - 1].file.path)")
+                return 0
+            default: return fail("Use: nod crashes, or nod crashes show <n>")
             }
         case "update":
             switch rest.first {

@@ -162,7 +162,7 @@ struct AuditionBar: View {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 8) {
                             Text("Playing \(url.deletingPathExtension().lastPathComponent)").font(.system(size: 14, weight: .medium)).lineLimit(1)
-                            Text("Same take, on repeat. Hear your EQ changes.").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                            Text("On repeat, through your current settings.").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
                         }
                         ProgressView(value: engine.auditionProgress).controlSize(.small)
                     }

@@ -11,7 +11,7 @@ struct PresetsCard: View {
 
     var body: some View {
         Card {
-            Row(title: "Presets", caption: "Each one keeps the whole sound: EQ, gate, compressor, limiter and output level.") {
+            Row(title: "Presets", caption: "A preset saves the EQ, gate, compressor, limiter and output level.") {
                 Button { name = suggestedName; naming = true } label: { Label("Save Current…", systemImage: "plus") }.buttonStyle(PillButtonStyle())
             }
             let current = engine.currentPreset
@@ -69,15 +69,15 @@ struct PresetsCard: View {
     @ViewBuilder private var compare: some View {
         if let playing {
             Row(title: "Comparing on \(Recording.friendly(playing.date))",
-                caption: engine.presets.isEmpty ? "Save a preset, change the sound, save another, then click between them."
-                    : "Click a preset\(engine.presets.count > 1 ? ", or press ⌘1 to ⌘\(min(engine.presets.count, 9))," : "") to hear it on the same words.") {
+                caption: engine.presets.isEmpty ? "Save two or more presets, then click one to switch."
+                    : "Click a preset\(engine.presets.count > 1 ? ", or press ⌘1 to ⌘\(min(engine.presets.count, 9))," : "") to switch.") {
                 Button { engine.stopAudition() } label: { Label("Stop", systemImage: "stop.fill") }.buttonStyle(PillButtonStyle())
             }
         } else if takes.isEmpty {
-            Row(title: "Compare on a recording", caption: engine.recordings.isEmpty ? "Record a few sentences first. Presets can then be heard one after another on that take."
-                : "Make a new recording first. The ones here have no unprocessed take to replay.") { EmptyView() }
+            Row(title: "Compare on a recording", caption: engine.recordings.isEmpty ? "Record a few sentences to compare presets on them."
+                : "Make a new recording to use this. The recordings you have were saved without their original audio.") { EmptyView() }
         } else {
-            Row(title: "Compare on a recording", caption: "Loops one take while you switch presets, so every preset is heard on the same words.") {
+            Row(title: "Compare on a recording", caption: "Plays one recording on repeat while you switch presets.") {
                 Menu {
                     ForEach(takes.prefix(12)) { r in
                         Button("\(Recording.friendly(r.date))  ·  \(Recording.clock(r.seconds))") { play(r) }

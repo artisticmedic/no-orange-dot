@@ -517,6 +517,7 @@ struct EditorView: View {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.system(size: 13)).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 6)
             }
+            CrashBanner()
             if !engine.driverInstalled {
                 Card { Row(title: "The microphone driver is missing", caption: "Run the installer again. Until it is back, no app can see the microphone.") { EmptyView() } }
             } else {
@@ -557,7 +558,7 @@ struct EditorView: View {
                 }
             }
             RowDivider()
-            Row(title: "Check automatically", caption: "Once a day. It asks the update address for the latest version number and sends nothing about you.") {
+            Row(title: "Check automatically", caption: "Checks once a day. Nothing about you is sent.") {
                 Toggle("Check automatically", isOn: $engine.autoUpdate).labelsHidden().toggleStyle(.switch)
             }
         }
@@ -587,7 +588,7 @@ struct EditorView: View {
                 }
             }
             RowDivider()
-            Row(title: "Show in Dock", caption: "Keeps the Dock icon while this window is closed. Off, the app lives in the menu bar.") {
+            Row(title: "Show in Dock", caption: "Keeps the app in the Dock when this window is closed.") {
                 Toggle("Show in Dock", isOn: $engine.showInDock).labelsHidden().toggleStyle(.switch)
             }
             RowDivider()
@@ -601,7 +602,7 @@ struct EditorView: View {
         Card {
             MicNameRow()
             RowDivider()
-            Row(title: "Real microphone", caption: "The mic this app opens. Each one keeps its own sound.") {
+            Row(title: "Real microphone", caption: "The mic this app opens. EQ and dynamics are saved per mic.") {
                 Menu {
                     ForEach(engine.inputs) { input in
                         Button { engine.inputUID = input.uid } label: {
@@ -624,7 +625,7 @@ struct EditorView: View {
                 SliderRow(label: "Gain", value: String(format: "%.1f dB", g.db),
                           binding: Binding(get: { engine.micGain?.db ?? g.db }, set: { engine.setMicGain($0) }), range: g.min...g.max).padding(.bottom, 6)
                 RowDivider()
-                Row(title: "Lock gain", caption: engine.gainLockDB != nil ? String(format: "Held at %.1f dB. If another app moves it, it goes straight back.", engine.gainLockDB ?? g.db)
+                Row(title: "Lock gain", caption: engine.gainLockDB != nil ? String(format: "Held at %.1f dB. Changes from other apps are undone.", engine.gainLockDB ?? g.db)
                                                                          : "Holds the gain where it is, and puts it back if another app moves it.") {
                     Toggle("Lock gain", isOn: Binding(get: { engine.gainLockDB != nil }, set: { engine.setGainLock($0) })).labelsHidden().toggleStyle(.switch)
                 }
@@ -743,7 +744,7 @@ struct DynamicsView: View {
             }
             RowDivider()
             Row(title: "Limiter", caption: engine.dynamics.limiterOn && engine.running && engine.limiterDB > 0.1
-                ? String(format: "Caught a peak: pulled it down %.1f dB.", engine.limiterDB) : "Catches loud peaks before they clip. Leaves everything else alone.") {
+                ? String(format: "Pulled a peak down %.1f dB.", engine.limiterDB) : "Catches loud peaks before they clip.") {
                 Toggle("Limiter", isOn: $engine.dynamics.limiterOn).labelsHidden().toggleStyle(.switch)
             }
             if engine.dynamics.limiterOn {
@@ -839,7 +840,7 @@ struct MicNameRow: View {
     @State private var draft = ""
 
     var body: some View {
-        Row(title: "Name apps see", caption: engine.canRenameMic ? "What this mic is called in Zoom, Meet and the Mac's sound settings."
+        Row(title: "Name apps see", caption: engine.canRenameMic ? "What this mic is called in Zoom, Meet, other apps and the Mac's sound settings."
                                                                  : "Renaming needs the newer driver. Run the installer once more.") {
             HStack(spacing: 8) {
                 TextField(Brand.micName, text: $draft).textFieldStyle(.plain).font(.system(size: 14))
