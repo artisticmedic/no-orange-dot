@@ -107,7 +107,6 @@ final class CLITests: XCTestCase {
 
     func testUpdateCheckAgainstALocalFeed() throws {
         let feed = home.appendingPathComponent("latest.json")
-        XCTAssertEqual(try nod("update").code, 1, "no feed set")
         XCTAssertEqual(try nod("update", "feed", "http://example.com/latest.json").code, 1)
         XCTAssertEqual(try nod("update", "feed", feed.absoluteString).code, 0)
         try Data(#"{"version":"99.0","url":"https://example.com/a.pkg","notes":"Better."}"#.utf8).write(to: feed)

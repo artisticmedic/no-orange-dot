@@ -34,8 +34,8 @@ enum UpdateCheck {
 
     struct Problem: Error, Equatable { let message: String; init(_ m: String) { message = m } }
 
-    /// The built-in feed address. Empty until the download page exists; config.json can name another.
-    static let builtInFeed = ""
+    /// The built-in feed address. config.json can name another.
+    static let builtInFeed = "https://updates.timgailey.com/no-orange-dot/latest.json"
 
     static func parse(_ data: Data, current: String = Version.current,
                       system: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion) throws -> Outcome {
