@@ -25,7 +25,17 @@ final class Engine: ObservableObject {
     @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     @Published var muted: Bool { didSet { mutedFlag = muted; evaluate(); changed() } }
-    @Published var inputUID: String { didSet { if inputUID != oldValue { switchProfile(from: oldValue); rebuild(); changed() } } }
+    @Published var inputUID: String {
+        didSet {
+            guard inputUID != oldValue else { return }
+            if !fallingBack { returnTo = nil }
+            switchProfile(from: oldValue); rebuild(); changed()
+        }
+    }
+    /// The chosen microphone when it has been unplugged and another stands in. Plugging it back in returns to it.
+    private var returnTo: String?
+    private var fallingBack = false
+    private var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
     private var mics: [String: MicProfile] = [:]
     @Published var bands: [Band] { didSet { noteHistory(oldValue); pushDSP(); changed() } }
@@ -170,6 +180,10 @@ final class Engine: ObservableObject {
         var r = HAL.addr(kAudioHardwarePropertyServiceRestarted)
         AudioObjectAddPropertyListenerBlock(HAL.system, &r, .main) { [weak self] _, _ in self?.coreAudioRestarted() }
         meterTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.tick() }
+        // USB microphones can come back from sleep as new devices, or at another rate.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self?.rebuild() }
+        }
         rebuild()
     }
 
@@ -209,10 +223,18 @@ final class Engine: ObservableObject {
         teardown()
         deviceSignature = currentSignature()
         inputs = HAL.inputDevices()
+        if let back = returnTo, back != inputUID, inputs.contains(where: { $0.uid == back }) {
+            fallingBack = true; defer { fallingBack = false }
+            returnTo = nil; inputUID = back; return // didSet re-enters rebuild
+        }
         if inputUID.isEmpty || !inputs.contains(where: { $0.uid == inputUID }) {
             let preferred = HAL.defaultInputUID()
             let pick = inputs.first(where: { $0.uid == preferred }) ?? inputs.first
-            if let pick, pick.uid != inputUID { inputUID = pick.uid; return } // didSet re-enters rebuild
+            if let pick, pick.uid != inputUID {
+                fallingBack = true; defer { fallingBack = false }
+                if !inputUID.isEmpty { returnTo = returnTo ?? inputUID }
+                inputUID = pick.uid; return // didSet re-enters rebuild
+            }
         }
         micDevice = HAL.device(uid: Brand.micUID)
         let feed = HAL.device(uid: Brand.feedUID)
@@ -228,6 +250,7 @@ final class Engine: ObservableObject {
 
         // Run the virtual mic at the real mic's rate so nothing is resampled on the way through.
         let sourceRate = HAL.sampleRate(source)
+        builtRate = sourceRate
         if sourceRate > 0, HAL.sampleRate(feed) != sourceRate { HAL.setSampleRate(feed, sourceRate) }
         stereoInput = HAL.inputChannels(source) == 2
         stereoFlag = stereoInput
@@ -462,6 +485,8 @@ final class Engine: ObservableObject {
         ticks += 1
         if ticks % 10 == 0 {
             if HAL.device(uid: Brand.micUID) != micDevice { listenerDevice = nil; rebuild() }
+            // Another app can change the mic's sample rate. The EQ is computed for one rate, so follow it.
+            else if builtRate > 0, let source = HAL.device(uid: inputUID), HAL.sampleRate(source) != builtRate { rebuild() }
             pollConfig(); refreshListeners(); writeStatus()
             if ticks % 20 == 0 || gainLockDB != nil { refreshMicGain() }
         }

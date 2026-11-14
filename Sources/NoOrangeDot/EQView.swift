@@ -8,6 +8,7 @@ struct EQView: View {
     private let fMin = 20.0, fMax = 20000.0, dbRange = 18.0
 
     @AppStorage("heatMap") private var heatMap = true
+    @State private var showEmptyHistory = false
     private var live: Bool { engine.monitoring || engine.auditioning != nil }
 
     var body: some View {
@@ -19,6 +20,18 @@ struct EQView: View {
             Row(title: "Equalizer", caption: readout ?? "Drag a dot to shape the sound. Every change can be undone.") {
                 IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { if let last = engine.history.first { engine.restore(last); selected = nil } }
                     .disabled(engine.history.isEmpty).opacity(engine.history.isEmpty ? 0.35 : 1)
+                if engine.history.isEmpty {
+                    IconButton(symbol: "clock.arrow.circlepath", label: "Earlier curves") { showEmptyHistory = true }
+                        .popover(isPresented: $showEmptyHistory, arrowEdge: .bottom) {
+                            VStack(spacing: 8) {
+                                ArtworkView(art: .emptyHistory, tint: Artwork.tint(engine.appIcon), surface: .clear)
+                                Text("No earlier curves yet").font(.system(size: 13, weight: .medium))
+                                Text("Change the EQ and the curve from before is kept here.")
+                                    .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            }
+                            .padding(16).frame(width: 220)
+                        }
+                } else {
                 Menu {
                     ForEach(engine.history) { s in
                         Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s); selected = nil }
@@ -27,8 +40,8 @@ struct EQView: View {
                     Button("Clear History") { engine.clearHistory() }
                 } label: { Image(systemName: "clock.arrow.circlepath").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34) }
                 .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                .disabled(engine.history.isEmpty).opacity(engine.history.isEmpty ? 0.35 : 1)
                 .help("Earlier curves").accessibilityLabel("Earlier curves")
+                }
                 Toggle("Equalizer", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).labelsHidden().toggleStyle(.switch)
             }
             graph.frame(height: graphHeight).padding(.horizontal, 10).padding(.bottom, 10).opacity(engine.bypass ? 0.45 : 1)

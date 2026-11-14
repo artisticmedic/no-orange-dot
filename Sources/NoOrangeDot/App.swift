@@ -379,9 +379,14 @@ struct EditorView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(Brand.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 10).padding(.bottom, 12)
+            HStack(alignment: .top, spacing: 9) {
+                if let icon = AppDelegate.appIcon(engine.appIcon) {
+                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 30, height: 30).accessibilityHidden(true)
+                }
+                Text(Brand.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 10).padding(.bottom, 12)
             ForEach(EditorTab.allCases) { t in
                 Button { tab = t } label: {
                     HStack(spacing: 10) {
@@ -438,8 +443,7 @@ struct EditorView: View {
                 }
         } else {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.28), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+                ArtworkView(art: .idleSlot).opacity(0.65)
                 if engine.recording {
                     Circle().fill(Color.red).frame(width: 10, height: 10)
                 } else if engine.muted {

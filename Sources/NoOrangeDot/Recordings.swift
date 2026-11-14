@@ -87,7 +87,10 @@ struct RecordingsView: View {
                 }
                 Card {
                     if engine.recordings.isEmpty {
-                        Row(title: "Nothing here yet", caption: "Press Record and say a few sentences.") { EmptyView() }
+                        HStack(spacing: 4) {
+                            ArtworkView(art: .emptyRecordings, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
+                            Row(title: "Nothing here yet", caption: "Press Record and say a few sentences.") { EmptyView() }
+                        }
                     } else {
                         ForEach(Array(engine.recordings.enumerated()), id: \.element.id) { i, r in
                             if i > 0 { RowDivider() }
@@ -104,7 +107,9 @@ struct RecordingsView: View {
     private func row(_ r: Recording) -> some View {
         let throughEQ = r.raw != nil
         let isPlaying = throughEQ ? engine.auditioning == r.url : playback.playing == r.url
-        return Row(title: Recording.friendly(r.date),
+        return HStack(spacing: 0) {
+          ArtworkView(art: .take, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
+          Row(title: Recording.friendly(r.date),
                    caption: "\(Recording.clock(r.seconds))  ·  \(r.url.lastPathComponent)\(throughEQ ? "  ·  plays through the EQ" : "")") {
             HStack(spacing: 2) {
                 IconButton(symbol: isPlaying ? "stop.fill" : "play.fill", label: isPlaying ? "Stop" : throughEQ ? "Play through the EQ" : "Play") {
@@ -118,6 +123,7 @@ struct RecordingsView: View {
                     engine.trash([r])
                 }
             }
+          }
         }
         .background(isPlaying ? Color.primary.opacity(0.05) : .clear)
     }

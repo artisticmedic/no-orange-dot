@@ -44,7 +44,10 @@ struct MenuPanelContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(spacing: 7) {
+                    if let icon = AppDelegate.appIcon(engine.appIcon) {
+                        Image(nsImage: icon).resizable().interpolation(.high).frame(width: 22, height: 22).accessibilityHidden(true)
+                    }
                     Text(Brand.short).font(.system(size: 15, weight: .semibold))
                     Spacer(minLength: 8)
                     if engine.running { LevelMeter(level: engine.level).frame(width: 64, height: 4) }
@@ -64,7 +67,11 @@ struct MenuPanelContent: View {
             }
             .disabled(!engine.driverInstalled)
 
-            Divider().padding(.horizontal, 10)
+            HStack(spacing: 0) {
+                Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1)
+                ArtworkView(art: .pixelRule, tint: .primary.opacity(0.67))
+            }
+            .padding(.horizontal, 10)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Sound").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                 CurveView().frame(height: 38)
