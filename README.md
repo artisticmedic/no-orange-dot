@@ -88,6 +88,20 @@ Then pick **No Orange Dot Mic** as the input in your apps or in System Settings 
 To remove the app, the driver and `nod`, run `./scripts/uninstall.sh`. Settings stay unless you add
 `--settings`.
 
+## Updates
+
+The app looks for a new version once a day, and on request in Settings › Updates or with `nod update`.
+It reads one small JSON file from the update address and sends nothing else:
+
+```json
+{ "version": "0.2.0", "url": "https://…/No Orange Dot 0.2.0.pkg", "notes": "…", "minimumSystem": "14.0" }
+```
+
+`nod update install` or the Install button downloads the package and opens it in Installer only if
+Gatekeeper accepts it as notarized and it was signed by the same Developer ID team as the running
+app. The app restarts itself when the installer finishes. `scripts/make-feed.sh` writes the JSON for
+a release. `nod update feed <https address>` points a copy of the app at another feed.
+
 ## Tests
 
 ```sh

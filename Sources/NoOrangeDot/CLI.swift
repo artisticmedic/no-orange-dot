@@ -3,7 +3,7 @@ import Foundation
 /// Command-line control, so scripts and agents can do everything the windows can.
 /// Settings verbs edit config.json, which the running app re-reads within half a second.
 enum CLI {
-    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "open", "help", "--help", "-h"]
+    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "open", "help", "--help", "-h"]
 
     static let help = """
     nod: control \(Brand.name)
@@ -22,6 +22,10 @@ enum CLI {
       nod limiter on|off [ceiling=-1]    catch peaks before they clip
       nod record start|stop|toggle
       nod shortcut mute|record <keys>|off   system-wide shortcut, e.g. ctrl+opt+cmd+m
+      nod update                         look for a new version
+      nod update install                 download it, check who signed it, and open the installer
+      nod update auto on|off             look once a day
+      nod update feed <https address>|reset
       nod auto-eq measure [seconds=20] [target=warm] [strength=1] [apply]
                                          listen to the mic, then suggest an EQ (speak the whole time)
       nod auto-eq match <reference audio> <this mic's audio> [strength=1] [apply] [out=<wav>]
@@ -241,6 +245,42 @@ enum CLI {
             case "clear": Command.send("history-clear"); return 0
             default: return fail("Use: nod history, nod history restore <n>, or nod history clear")
             }
+        case "update":
+            switch rest.first {
+            case "auto":
+                guard rest.count == 2, rest[1] == "on" || rest[1] == "off" else { return fail("Use: nod update auto on|off") }
+                return done(edit { $0.autoUpdate = rest[1] == "on" })
+            case "feed":
+                guard rest.count == 2 else { return fail("Use: nod update feed <https address>, or nod update feed reset") }
+                if rest[1] != "reset", URL(string: rest[1]).map(UpdateCheck.allowed) != true { return fail("The update address must start with https://") }
+                return done(edit { $0.updateFeed = rest[1] == "reset" ? "" : rest[1] })
+            case nil, "check", "install":
+                guard case .ok(let s) = Settings.load() else { return fail("No settings file yet.") }
+                let feed = s.updateFeed.isEmpty ? UpdateCheck.builtInFeed : s.updateFeed
+                guard !feed.isEmpty else { return fail("No update address is set yet. Set one with: nod update feed <https address>") }
+                do {
+                    switch try wait({ try await UpdateCheck.check(feed: feed) }) {
+                    case .upToDate: print("Up to date (\(Version.current))."); return 0
+                    case .needsNewerSystem(let r): print("Version \(r.version) needs macOS \(r.minimumSystem ?? "") or later."); return 0
+                    case .available(let r):
+                        guard rest.first == "install" else {
+                            print("Version \(r.version) is available. You have \(Version.current).\(r.notes.map { "\n\($0)" } ?? "")\nInstall it with: nod update install")
+                            return 0
+                        }
+                        let pkg = try wait { try await UpdateCheck.download(r) }
+                        if let problem = UpdateCheck.problem(with: pkg, team: UpdateCheck.ownTeam) {
+                            try? FileManager.default.removeItem(at: pkg)
+                            return fail(problem)
+                        }
+                        let open = Process()
+                        open.executableURL = URL(fileURLWithPath: "/usr/bin/open"); open.arguments = [pkg.path]
+                        try open.run(); open.waitUntilExit()
+                        print("Opened the installer for version \(r.version). The app restarts by itself when it finishes.")
+                        return open.terminationStatus
+                    }
+                } catch { return fail((error as? UpdateCheck.Problem)?.message ?? error.localizedDescription) }
+            default: return fail("Use: nod update, nod update install, nod update auto on|off, or nod update feed <https address>")
+            }
         case "appicon":
             guard let a = rest.first, a == "paint" || a == "carbon" else { return fail("Use: nod appicon paint|carbon") }
             return done(edit { $0.appIcon = a })
@@ -320,6 +360,15 @@ enum CLI {
 
     private static func fail(_ message: String) -> Int32 { FileHandle.standardError.write((message + "\n").data(using: .utf8)!); return 1 }
     private static func done(_ r: Int32?) -> Int32 { r == 0 ? printSettings() : (r ?? 1) }
+    /// Runs async work to completion from the command line.
+    private static func wait<T>(_ work: @escaping () async throws -> T) throws -> T {
+        let done = DispatchSemaphore(value: 0)
+        var result: Result<T, Error>!
+        Task.detached { do { result = .success(try await work()) } catch { result = .failure(error) }; done.signal() }
+        done.wait()
+        return try result.get()
+    }
+
     private static func settle() -> Int32 { usleep(700_000); return run(["status"]) }
 
     /// Loads config.json, applies the change, and saves it. Refuses to touch a file that doesn't parse.

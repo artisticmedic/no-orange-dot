@@ -31,6 +31,8 @@ struct MicProfile: Codable, Equatable {
 struct Settings: Codable, Equatable {
     var muted = false
     var inputUID = ""
+    /// The microphone you chose, while it is unplugged and `inputUID` names a stand-in. Empty otherwise.
+    var returnToUID = ""
     var icon = "eclipse"
     /// Which Dock icon the app wears while it runs: "paint" or "carbon".
     var appIcon = "paint"
@@ -39,6 +41,10 @@ struct Settings: Codable, Equatable {
     /// System-wide shortcuts, written like "ctrl+opt+cmd+m". Empty means none.
     var muteShortcut = "ctrl+opt+cmd+m"
     var recordShortcut = "ctrl+opt+cmd+r"
+    /// Look for a new version once a day.
+    var autoUpdate = true
+    /// Where to look for it. Empty means the built-in address.
+    var updateFeed = ""
     /// Where recordings are saved and listed from. Empty means ~/Music/No Orange Dot.
     var recordingsFolder = ""
     /// The name apps show for the virtual mic. Empty means the built-in name.
@@ -63,6 +69,9 @@ struct Settings: Codable, Equatable {
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? false
         muteShortcut = try c.decodeIfPresent(String.self, forKey: .muteShortcut) ?? "ctrl+opt+cmd+m"
         recordShortcut = try c.decodeIfPresent(String.self, forKey: .recordShortcut) ?? "ctrl+opt+cmd+r"
+        autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? true
+        returnToUID = try c.decodeIfPresent(String.self, forKey: .returnToUID) ?? ""
+        updateFeed = try c.decodeIfPresent(String.self, forKey: .updateFeed) ?? ""
         mics = try c.decodeIfPresent([String: MicProfile].self, forKey: .mics) ?? [:]
         recordingsFolder = try c.decodeIfPresent(String.self, forKey: .recordingsFolder) ?? ""
         micName = try c.decodeIfPresent(String.self, forKey: .micName) ?? ""

@@ -105,6 +105,25 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: config), junk)
     }
 
+    func testUpdateCheckAgainstALocalFeed() throws {
+        let feed = home.appendingPathComponent("latest.json")
+        XCTAssertEqual(try nod("update").code, 1, "no feed set")
+        XCTAssertEqual(try nod("update", "feed", "http://example.com/latest.json").code, 1)
+        XCTAssertEqual(try nod("update", "feed", feed.absoluteString).code, 0)
+        try Data(#"{"version":"99.0","url":"https://example.com/a.pkg","notes":"Better."}"#.utf8).write(to: feed)
+        var r = try nod("update")
+        XCTAssertEqual(r.code, 0, r.err)
+        XCTAssertTrue(r.out.contains("Version 99.0 is available"), r.out)
+        XCTAssertTrue(r.out.contains("Better."))
+        try Data(#"{"version":"0.0.0","url":"https://example.com/a.pkg"}"#.utf8).write(to: feed)
+        r = try nod("update")
+        XCTAssertTrue(r.out.contains("Up to date"), r.out)
+        try Data("nonsense".utf8).write(to: feed)
+        XCTAssertEqual(try nod("update").code, 1)
+        XCTAssertEqual(try nod("update", "auto", "off").code, 0)
+        XCTAssertEqual(try settings()["autoUpdate"] as? Bool, false)
+    }
+
     func testOutputGainRange() throws {
         XCTAssertEqual(try nod("output", "6").code, 0)
         XCTAssertEqual(try nod("output", "40").code, 1)

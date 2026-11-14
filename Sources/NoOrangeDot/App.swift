@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item.button?.target = self
         item.button?.action = #selector(toggle)
         panel = MenuPanelController(engine: engine) { [weak self] in self?.perform($0) }
-        watch = engine.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in MainActor.assumeIsolated { self?.updateIcon(); self?.applyDockPolicy(); self?.applyShortcuts(); self?.applyAppIcon() } }
+        watch = engine.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in MainActor.assumeIsolated { self?.updateIcon(); self?.applyDockPolicy(); self?.applyShortcuts(); self?.applyAppIcon(); self?.applyUpdater() } }
         updateIcon()
         DistributedNotificationCenter.default().addObserver(forName: Command.name, object: nil, queue: .main) { [weak self] note in
             guard let verb = note.object as? String else { return }
@@ -57,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         applyAppIcon()
         applyDockPolicy()
         applyShortcuts()
+        applyUpdater()
+        Updater.shared.checkIfDue()
         // Opened by hand, show the window. Started at login, stay in the menu bar until asked.
         let atLogin = NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
         if !atLogin, !CommandLine.arguments.contains("--quiet") { openEditor() }
@@ -150,6 +152,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var appliedAppIcon = ""
     /// The Dock icon while the app runs. Finder keeps showing the icon built into the app.
+    private func applyUpdater() {
+        Updater.shared.feed = engine.updateFeed.isEmpty ? UpdateCheck.builtInFeed : engine.updateFeed
+        Updater.shared.automatic = engine.autoUpdate
+    }
+
     private func applyAppIcon() {
         guard appliedAppIcon != engine.appIcon else { return }
         appliedAppIcon = engine.appIcon
@@ -355,6 +362,7 @@ enum EditorTab: String, CaseIterable, Identifiable {
 /// The full app: a sidebar for the sections and the mic's state, the page on the right.
 struct EditorView: View {
     @EnvironmentObject var engine: Engine
+    @ObservedObject private var updater = Updater.shared
     @State var tab: EditorTab = .sound
 
     var body: some View {
@@ -523,6 +531,7 @@ struct EditorView: View {
                     VStack(spacing: 8) { SectionLabel(text: "Microphone"); general }
                     VStack(spacing: 8) { SectionLabel(text: "Shortcuts"); shortcuts }
                     VStack(spacing: 8) { SectionLabel(text: "App"); app }
+                    VStack(spacing: 8) { SectionLabel(text: "Updates"); updates }
                     VStack(spacing: 8) { SectionLabel(text: "Automation"); CLIToolView() }
                 }
             }
@@ -534,6 +543,23 @@ struct EditorView: View {
             Row(title: "Mute or unmute", caption: "Works in any app. Click to set it, or press × to remove it.") { ShortcutButton(text: $engine.muteShortcut) }
             RowDivider()
             Row(title: "Start or stop recording", caption: "Works in any app. Click to set it, or press × to remove it.") { ShortcutButton(text: $engine.recordShortcut) }
+        }
+    }
+
+    private var updates: some View {
+        Card {
+            Row(title: "Version \(Version.current)", caption: updater.summary) {
+                if updater.available != nil {
+                    Button("Install…") { updater.install() }.buttonStyle(PillButtonStyle())
+                } else {
+                    Button(updater.state == .checking ? "Checking…" : "Check Now") { updater.check() }.buttonStyle(PillButtonStyle())
+                        .disabled(updater.busy || updater.state == .notSetUp)
+                }
+            }
+            RowDivider()
+            Row(title: "Check automatically", caption: "Once a day. It asks the update address for the latest version number and sends nothing about you.") {
+                Toggle("Check automatically", isOn: $engine.autoUpdate).labelsHidden().toggleStyle(.switch)
+            }
         }
     }
 

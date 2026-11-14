@@ -33,7 +33,7 @@ final class Engine: ObservableObject {
         }
     }
     /// The chosen microphone when it has been unplugged and another stands in. Plugging it back in returns to it.
-    private var returnTo: String?
+    private var returnTo: String? { didSet { if returnTo != oldValue { changed() } } }
     private var fallingBack = false
     private var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
@@ -57,6 +57,8 @@ final class Engine: ObservableObject {
     @Published var icon: String { didSet { changed() } }
     @Published var appIcon = "paint" { didSet { if appIcon != oldValue { changed() } } }
     @Published var showInDock = false { didSet { if showInDock != oldValue { changed() } } }
+    @Published var autoUpdate = true { didSet { if autoUpdate != oldValue { changed() } } }
+    @Published var updateFeed = "" { didSet { if updateFeed != oldValue { changed() } } }
     @Published var recordingsFolder: String { didSet { if recordingsFolder != oldValue { changed(); refreshRecordings() } } }
     @Published var recordings: [Recording] = []
     /// The name the user wants apps to show for the virtual mic. Empty means the built-in name.
@@ -155,6 +157,9 @@ final class Engine: ObservableObject {
         icon = s.icon
         appIcon = s.appIcon
         showInDock = s.showInDock
+        autoUpdate = s.autoUpdate
+        updateFeed = s.updateFeed
+        returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID
         historyUID = s.inputUID
         recordingsFolder = s.recordingsFolder
         muteShortcut = s.muteShortcut
@@ -641,7 +646,7 @@ final class Engine: ObservableObject {
 
     private var settings: Settings {
         var s = Settings()
-        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut
+        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.returnToUID = returnTo ?? ""; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut
         s.mics = mics
         if !inputUID.isEmpty { s.mics[inputUID] = activeProfile }
         return s
@@ -782,6 +787,9 @@ final class Engine: ObservableObject {
             if s.icon != icon { icon = s.icon }
             if s.appIcon != appIcon { appIcon = s.appIcon }
             if s.showInDock != showInDock { showInDock = s.showInDock }
+            if s.autoUpdate != autoUpdate { autoUpdate = s.autoUpdate }
+            if s.updateFeed != updateFeed { updateFeed = s.updateFeed }
+            if s.returnToUID != (returnTo ?? "") { returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID }
             if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
             if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }
             if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
