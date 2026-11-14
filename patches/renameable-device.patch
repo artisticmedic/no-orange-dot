@@ -1,0 +1,63 @@
+diff --git a/BlackHole/BlackHole.c b/BlackHole/BlackHole.c
+index 3c4385c..0e07f9f 100644
+--- a/BlackHole/BlackHole.c
++++ b/BlackHole/BlackHole.c
+@@ -447,7 +447,19 @@ else                                                                  \
+ 
+ static CFStringRef get_box_uid(void)          { RETURN_FORMATTED_STRING(kBox_UID) }
+ static CFStringRef get_device_uid(void)       { RETURN_FORMATTED_STRING(kDevice_UID) }
+-static CFStringRef get_device_name(void)      { RETURN_FORMATTED_STRING(kDevice_Name) }
++//	The visible device can be renamed at runtime. Core Audio does not let a client set a device's
++//	name, but it does let one set a box's name, so the box name carries it: setting the box name
++//	renames the device, and setting it to an empty string puts the built-in name back.
++static CFStringRef                  gDevice_CustomName                  = NULL;
++static CFStringRef get_device_name(void)
++{
++	pthread_mutex_lock(&gPlugIn_StateMutex);
++	CFStringRef theCustomName = gDevice_CustomName;
++	if(theCustomName != NULL) { CFRetain(theCustomName); }
++	pthread_mutex_unlock(&gPlugIn_StateMutex);
++	if(theCustomName != NULL) { return theCustomName; }
++	RETURN_FORMATTED_STRING(kDevice_Name)
++}
+ static CFStringRef get_device2_uid(void)      { RETURN_FORMATTED_STRING(kDevice2_UID) }
+ static CFStringRef get_device2_name(void)     { RETURN_FORMATTED_STRING(kDevice2_Name) }
+ static CFStringRef get_device_model_uid(void) { RETURN_FORMATTED_STRING(kDevice_ModelUID) }
+@@ -765,6 +777,19 @@ static OSStatus	BlackHole_Initialize(AudioServerPlugInDriverRef inDriver, AudioS
+ 		CFRelease(theSettingsData);
+ 	}
+ 	
++	//	initialize the custom device name from the settings
++	gPlugIn_Host->CopyFromStorage(gPlugIn_Host, CFSTR("device name"), &theSettingsData);
++	if(theSettingsData != NULL)
++	{
++		if(CFGetTypeID(theSettingsData) == CFStringGetTypeID() && CFStringGetLength((CFStringRef)theSettingsData) > 0)
++		{
++			gDevice_CustomName = (CFStringRef)theSettingsData;
++			CFRetain(gDevice_CustomName);
++		}
++		CFRelease(theSettingsData);
++		theSettingsData = NULL;
++	}
++
+ 	//	initialize the box name from the settings
+ 	gPlugIn_Host->CopyFromStorage(gPlugIn_Host, CFSTR("box acquired"), &theSettingsData);
+ 	if(theSettingsData != NULL)
+@@ -2095,7 +2120,17 @@ static OSStatus	BlackHole_SetBoxPropertyData(AudioServerPlugInDriverRef inDriver
+ 					CFRelease(gBox_Name);
+ 				}
+ 				gBox_Name = *theNewName;
++				//	the box name is also the visible device's custom name
++				Boolean isEmpty = (gBox_Name == NULL) || (CFGetTypeID(gBox_Name) != CFStringGetTypeID()) || (CFStringGetLength(gBox_Name) == 0);
++				if(gDevice_CustomName != NULL) { CFRelease(gDevice_CustomName); gDevice_CustomName = NULL; }
++				if(!isEmpty) { gDevice_CustomName = CFStringCreateCopy(NULL, gBox_Name); }
+ 				pthread_mutex_unlock(&gPlugIn_StateMutex);
++				if(isEmpty) { gPlugIn_Host->DeleteFromStorage(gPlugIn_Host, CFSTR("device name")); }
++				else { gPlugIn_Host->WriteToStorage(gPlugIn_Host, CFSTR("device name"), *theNewName); }
++				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
++					AudioObjectPropertyAddress theAddress = { kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
++					gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Device, 1, &theAddress);
++				});
+ 				*outNumberPropertiesChanged = 1;
+ 				outChangedAddresses[0].mSelector = kAudioObjectPropertyName;
+ 				outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;

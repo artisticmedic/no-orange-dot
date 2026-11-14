@@ -1,0 +1,6 @@
+#!/bin/bash
+# Runs as root after the files are in place.
+# Remove the driver from before the rename, then restart Core Audio so the new driver loads.
+rm -rf /Library/Audio/Plug-Ins/HAL/OnAir.driver
+/usr/bin/killall -9 coreaudiod 2>/dev/null || true
+exit 0
