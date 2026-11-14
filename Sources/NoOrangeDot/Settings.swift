@@ -22,6 +22,66 @@ struct MicProfile: Codable, Equatable {
     }
 }
 
+/// A whole sound saved under a name: EQ, gate, compressor, limiter and output level. Presets belong to no
+/// one microphone, so the same one can be tried on any of them or on a recording.
+struct SoundPreset: Codable, Identifiable, Equatable {
+    var id = UUID()   // in-memory only
+    var name: String
+    var equalizer = true
+    var outputGainDB = 0.0
+    var bands: [Band]
+    var dynamics = Dynamics()
+
+    enum CodingKeys: String, CodingKey { case name, equalizer, outputGainDB, bands, dynamics }
+
+    init(name: String, from p: MicProfile) {
+        self.name = name; equalizer = p.equalizer; outputGainDB = p.outputGainDB; bands = p.bands; dynamics = p.dynamics
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        equalizer = try c.decodeIfPresent(Bool.self, forKey: .equalizer) ?? true
+        outputGainDB = try c.decodeIfPresent(Double.self, forKey: .outputGainDB) ?? 0
+        bands = try c.decodeIfPresent([Band].self, forKey: .bands) ?? Presets.flat
+        dynamics = try c.decodeIfPresent(Dynamics.self, forKey: .dynamics) ?? Dynamics()
+    }
+
+    /// True when a microphone's sound is exactly this preset.
+    func matches(_ p: MicProfile) -> Bool {
+        equalizer == p.equalizer && outputGainDB == p.outputGainDB && bands == p.bands && dynamics == p.dynamics
+    }
+
+    func apply(to p: inout MicProfile) {
+        p.equalizer = equalizer; p.outputGainDB = outputGainDB; p.bands = bands; p.dynamics = dynamics
+    }
+
+    /// "5 bands · gate · compressor"
+    var summary: String {
+        let on = bands.filter(\.on).count
+        var parts = [equalizer ? "\(on) band\(on == 1 ? "" : "s")" : "EQ off"]
+        if dynamics.gateOn { parts.append("gate") }
+        if dynamics.compOn { parts.append("compressor") }
+        if dynamics.limiterOn { parts.append("limiter") }
+        if outputGainDB != 0 { parts.append(String(format: "%+.1f dB", outputGainDB)) }
+        return parts.joined(separator: " · ")
+    }
+
+    static func == (a: SoundPreset, b: SoundPreset) -> Bool {
+        a.name == b.name && a.equalizer == b.equalizer && a.outputGainDB == b.outputGainDB && a.bands == b.bands && a.dynamics == b.dynamics
+    }
+
+    /// Adds the preset, or replaces the one with the same name.
+    static func save(_ preset: SoundPreset, in list: inout [SoundPreset]) {
+        if let i = list.firstIndex(where: { $0.name.caseInsensitiveCompare(preset.name) == .orderedSame }) { list[i] = preset } else { list.append(preset) }
+    }
+
+    /// Finds a preset by its number in the list (from 1) or by name.
+    static func index(of key: String, in list: [SoundPreset]) -> Int? {
+        if let n = Int(key), list.indices.contains(n - 1) { return n - 1 }
+        return list.firstIndex { $0.name.caseInsensitiveCompare(key) == .orderedSame }
+    }
+}
+
 /// Everything the app remembers. It lives in config.json, which is the source of truth: the app
 /// writes it when you change something, and re-reads it when anything else (you, a script, an
 /// agent) edits it. Missing keys fall back to defaults so a partial file is valid.
@@ -50,6 +110,8 @@ struct Settings: Codable, Equatable {
     /// The name apps show for the virtual mic. Empty means the built-in name.
     var micName = ""
     var mics: [String: MicProfile] = [:]
+    /// Saved sounds, in the order they are listed.
+    var presets: [SoundPreset] = []
 
     /// The sound for the microphone in use.
     var active: MicProfile {
@@ -70,6 +132,7 @@ struct Settings: Codable, Equatable {
         muteShortcut = try c.decodeIfPresent(String.self, forKey: .muteShortcut) ?? "ctrl+opt+cmd+m"
         recordShortcut = try c.decodeIfPresent(String.self, forKey: .recordShortcut) ?? "ctrl+opt+cmd+r"
         autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? true
+        presets = try c.decodeIfPresent([SoundPreset].self, forKey: .presets) ?? []
         returnToUID = try c.decodeIfPresent(String.self, forKey: .returnToUID) ?? ""
         updateFeed = try c.decodeIfPresent(String.self, forKey: .updateFeed) ?? ""
         mics = try c.decodeIfPresent([String: MicProfile].self, forKey: .mics) ?? [:]

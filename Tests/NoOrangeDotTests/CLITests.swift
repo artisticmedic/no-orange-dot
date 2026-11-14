@@ -124,6 +124,30 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try settings()["autoUpdate"] as? Bool, false)
     }
 
+    func testPresets() throws {
+        try nod("preset", "warm")
+        XCTAssertEqual(try nod("preset", "save", "Warm", "radio").code, 0)
+        try nod("preset", "flat"); try nod("comp", "on", "ratio=5"); try nod("output", "3")
+        let saved = try nod("preset", "save", "Tight")
+        XCTAssertTrue(saved.out.contains("* 2  Tight  (4 bands · compressor · +3.0 dB)"), saved.out)
+        XCTAssertEqual(try nod("preset", "save", "7").code, 1)
+
+        XCTAssertEqual(try nod("preset", "use", "1").code, 0)
+        var dyn = try XCTUnwrap(find("dynamics", in: try XCTUnwrap(try settings()["mics"])) as? [String: Any])
+        XCTAssertEqual(dyn["compOn"] as? Bool, false, "a preset replaces the whole sound")
+        XCTAssertTrue(try nod("preset", "list").out.contains("* 1  Warm radio"))
+
+        XCTAssertEqual(try nod("preset", "use", "tight").code, 0)
+        dyn = try XCTUnwrap(find("dynamics", in: try XCTUnwrap(try settings()["mics"])) as? [String: Any])
+        XCTAssertEqual(dyn["compRatio"] as? Double, 5)
+
+        try nod("preset", "save", "tight")
+        XCTAssertEqual((try settings()["presets"] as? [Any])?.count, 2, "saving under the same name replaces")
+        XCTAssertEqual(try nod("preset", "use", "nope").code, 1)
+        XCTAssertEqual(try nod("preset", "delete", "Warm radio").code, 0)
+        XCTAssertEqual((try settings()["presets"] as? [Any])?.count, 1)
+    }
+
     func testOutputGainRange() throws {
         XCTAssertEqual(try nod("output", "6").code, 0)
         XCTAssertEqual(try nod("output", "40").code, 1)

@@ -787,7 +787,7 @@ enum Render {
             for (name, view) in views {
                 if name != "editor-playing" { engine.auditioning = nil }
                 let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, scheme))
-                let size = name == "panel" ? host.fittingSize : NSSize(width: 980, height: 700)
+                let size = name == "panel" ? host.fittingSize : NSSize(width: 980, height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700)
                 host.frame = NSRect(origin: .zero, size: size)
                 let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

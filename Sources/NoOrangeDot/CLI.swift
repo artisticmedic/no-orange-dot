@@ -12,7 +12,11 @@ enum CLI {
       nod get                            all settings, as JSON
       nod mute on|off|toggle
       nod eq on|off
-      nod preset warm|flat
+      nod preset warm|flat               a starting curve for the EQ
+      nod preset list                    saved sounds: EQ, gate, compressor, limiter and output level
+      nod preset save <name>             save the current sound, or replace the preset with that name
+      nod preset use <name or number>
+      nod preset delete <name or number>
       nod band list
       nod band set <n> [type=bell] [freq=480] [gain=-3] [q=0.7] [on=true]
       nod band add type=bell freq=1000 [gain=0] [q=1]
@@ -308,7 +312,23 @@ enum CLI {
                 switch rest.first { case "on": s.muted = true; case "off": s.muted = false; case "toggle": s.muted.toggle(); default: throw Bad("Use: nod mute on|off|toggle") }
             case "eq": s.active.equalizer = try onOff(rest.first, "nod eq on|off")
             case "preset":
-                switch rest.first { case "warm": s.active.bands = Presets.warm; case "flat": s.active.bands = Presets.flat; default: throw Bad("Use: nod preset warm|flat") }
+                let key = rest.dropFirst().joined(separator: " ")
+                switch rest.first {
+                case "warm": s.active.bands = Presets.warm
+                case "flat": s.active.bands = Presets.flat
+                case "list": break
+                case "save":
+                    guard !key.isEmpty else { throw Bad("Use: nod preset save <name>") }
+                    guard Int(key) == nil else { throw Bad("A preset's name can't be only a number, because numbers pick presets by position.") }
+                    SoundPreset.save(SoundPreset(name: key, from: s.active), in: &s.presets)
+                case "use":
+                    guard let i = SoundPreset.index(of: key, in: s.presets) else { throw Bad("No preset matches \"\(key)\". Try: nod preset list") }
+                    var p = s.active; s.presets[i].apply(to: &p); s.active = p
+                case "delete":
+                    guard let i = SoundPreset.index(of: key, in: s.presets) else { throw Bad("No preset matches \"\(key)\". Try: nod preset list") }
+                    s.presets.remove(at: i)
+                default: throw Bad("Use: nod preset list|save <name>|use <name>|delete <name>, or nod preset warm|flat")
+                }
             case "output":
                 guard let v = rest.first.flatMap(Double.init), (-12...12).contains(v) else { throw Bad("Use: nod output <dB>, from -12 to 12") }
                 s.active.outputGainDB = v
@@ -351,6 +371,11 @@ enum CLI {
             }
         }
         if verb == "band", result == 0 { return printBands() }
+        if verb == "preset", result == 0, ["list", "save", "delete"].contains(rest.first ?? ""), case .ok(let s) = Settings.load() {
+            if s.presets.isEmpty { print("No presets yet. Save the current sound with: nod preset save <name>") }
+            for (i, p) in s.presets.enumerated() { print("\(p.matches(s.active) ? "*" : " ") \(i + 1)  \(p.name)  (\(p.summary))") }
+            return 0
+        }
         return done(result)
     }
 

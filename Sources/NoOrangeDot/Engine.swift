@@ -42,6 +42,8 @@ final class Engine: ObservableObject {
     @Published var dynamics: Dynamics { didSet { pushDSP(); changed() } }
     @Published var bypass: Bool { didSet { pushDSP(); changed() } }
     @Published var outputGainDB: Double { didSet { pushDSP(); changed() } }
+    /// Saved sounds, shared by every microphone.
+    @Published var presets: [SoundPreset] = [] { didSet { if presets != oldValue { changed() } } }
     @Published var configProblem: String?
     /// Curves this app has replaced, newest first, so any change to the EQ can be taken back.
     @Published var history: [EQSnapshot] = EQSnapshot.load()
@@ -159,6 +161,7 @@ final class Engine: ObservableObject {
         showInDock = s.showInDock
         autoUpdate = s.autoUpdate
         updateFeed = s.updateFeed
+        presets = s.presets
         returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID
         historyUID = s.inputUID
         recordingsFolder = s.recordingsFolder
@@ -648,6 +651,7 @@ final class Engine: ObservableObject {
         var s = Settings()
         s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.returnToUID = returnTo ?? ""; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut
         s.mics = mics
+        s.presets = presets
         if !inputUID.isEmpty { s.mics[inputUID] = activeProfile }
         return s
     }
@@ -674,6 +678,27 @@ final class Engine: ObservableObject {
         }
         load(mics[inputUID] ?? MicProfile())
     }
+
+    // MARK: Presets
+
+    /// The preset the current sound matches exactly, if any.
+    var currentPreset: SoundPreset? { let now = activeProfile; return presets.first { $0.matches(now) } }
+
+    func savePreset(named name: String) {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        SoundPreset.save(SoundPreset(name: name, from: activeProfile), in: &presets)
+    }
+
+    func use(_ preset: SoundPreset) {
+        var p = activeProfile
+        preset.apply(to: &p)
+        p.bands = p.bands.map { var b = $0; b.id = UUID(); return b }
+        load(p)
+        changed()
+    }
+
+    func deletePreset(_ preset: SoundPreset) { presets.removeAll { $0.id == preset.id } }
 
     // MARK: History
 
@@ -789,6 +814,7 @@ final class Engine: ObservableObject {
             if s.showInDock != showInDock { showInDock = s.showInDock }
             if s.autoUpdate != autoUpdate { autoUpdate = s.autoUpdate }
             if s.updateFeed != updateFeed { updateFeed = s.updateFeed }
+            if s.presets != presets { presets = s.presets }
             if s.returnToUID != (returnTo ?? "") { returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID }
             if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
             if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }

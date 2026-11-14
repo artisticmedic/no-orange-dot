@@ -12,7 +12,7 @@ struct EQView: View {
     private var live: Bool { engine.monitoring || engine.auditioning != nil }
 
     var body: some View {
-        VStack(spacing: 12) { curveCard; presetCard; voiceCard }
+        VStack(spacing: 12) { curveCard; presetCard; PresetsCard(); voiceCard }
     }
 
     private var curveCard: some View {
@@ -54,7 +54,7 @@ struct EQView: View {
 
     private var presetCard: some View {
         Card {
-            Row(title: "Preset", caption: presetName == "Custom" ? "Your own curve. Changes are saved to its history." : nil) {
+            Row(title: "Curve", caption: presetName == "Custom" ? "Your own curve. Changes are saved to its history." : "A starting point for the EQ.") {
                 HStack(spacing: 8) {
                     Menu {
                         Button("Warm voice") { engine.bands = Presets.warm; selected = nil }
