@@ -391,7 +391,7 @@ struct EditorView: View {
                 if let icon = AppDelegate.appIcon(engine.appIcon) {
                     Image(nsImage: icon).resizable().interpolation(.high).frame(width: 30, height: 30).accessibilityHidden(true)
                 }
-                Text(Brand.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                Text(Brand.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 10).padding(.bottom, 12)
