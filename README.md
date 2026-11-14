@@ -20,10 +20,13 @@ The orange dot still appears while an app is using the mic. It goes away when th
 
 ## Features
 
-- Parametric EQ with up to 8 bands and a draggable curve
-- Noise gate and compressor
+- Parametric EQ with up to 8 bands and a draggable curve, with undo and a history of earlier curves
+- Noise gate, compressor and a limiter that catches peaks before they clip
 - Mute, which closes the real microphone
 - Record to a WAV file in `~/Music/No Orange Dot/`
+- Listen back: hear the processed mic in your headphones
+- System-wide keyboard shortcuts for mute and record
+- The microphone's own preamp gain, with a lock that stops other apps changing it, on hardware that allows it
 - A separate saved sound for each microphone
 - A live view of your voice behind the EQ curve, shaded where the EQ adds and takes away
 - Recordings keep a raw take, so you can replay one through the EQ and change the curve while it loops
@@ -40,15 +43,21 @@ Everything the windows can do is also available from the command line and from a
   re-reads it within half a second of any edit.
 - `status.json` in the same folder says what the app is doing: whether the mic is open, whether
   an app is listening, and the last recording.
-- The app's own binary is the command-line tool. Run it with `help` for the full list:
+- `nod` is the command-line tool. Install it from Settings › Automation, which links
+  `/usr/local/bin/nod` to the app's own binary. Run `nod help` for the full list:
 
 ```sh
-NoOrangeDot status
-NoOrangeDot mute toggle
-NoOrangeDot band set 3 freq=450 gain=-2.5
-NoOrangeDot comp on threshold=-18 ratio=3
-NoOrangeDot record start
+nod status
+nod mute toggle
+nod band set 3 freq=450 gain=-2.5
+nod comp on threshold=-18 ratio=3
+nod limiter on ceiling=-1
+nod record toggle
+nod shortcut mute ctrl+opt+cmd+m
+nod history restore 1
 ```
+
+If the chosen microphone is unplugged, another input stands in until it comes back.
 
 ## Requirements
 
@@ -76,7 +85,17 @@ the build script: the visible device can be renamed while it runs.
 
 Then pick **No Orange Dot Mic** as the input in your apps or in System Settings › Sound.
 
-To remove everything, run `./scripts/uninstall.sh`.
+To remove the app, the driver and `nod`, run `./scripts/uninstall.sh`. Settings stay unless you add
+`--settings`.
+
+## Tests
+
+```sh
+./scripts/test.sh       # the audio chain, the settings model and the CLI
+./scripts/vm-check.sh   # installs the package in a clean macOS guest; needs the vm tool
+```
+
+The CLI tests run against a throwaway folder named by `NOD_HOME`, so they never touch your settings.
 
 ## Credits and license
 

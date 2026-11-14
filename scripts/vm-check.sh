@@ -18,6 +18,7 @@ check() { # name, command run in the guest
 }
 devices="system_profiler SPAudioDataType"
 
+vm run "$LEASE" "sleep 45" >/dev/null 2>&1   # a fresh guest is busy for its first minute and drops ssh
 vm push "$LEASE" "$PKG" /tmp/nod.pkg
 vm push "$LEASE" scripts/uninstall.sh /tmp/uninstall.sh
 check "package passes Gatekeeper"        "spctl -a -t install /tmp/nod.pkg"
