@@ -3,5 +3,8 @@ import PackageDescription
 let package = Package(
     name: "NoOrangeDot",
     platforms: [.macOS(.v14)],
-    targets: [.executableTarget(name: "NoOrangeDot", path: "Sources/NoOrangeDot")]
+    targets: [
+        .executableTarget(name: "NoOrangeDot", path: "Sources/NoOrangeDot"),
+        .testTarget(name: "NoOrangeDotTests", dependencies: ["NoOrangeDot"], path: "Tests/NoOrangeDotTests"),
+    ]
 )

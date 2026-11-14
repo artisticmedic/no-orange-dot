@@ -79,7 +79,9 @@ struct Settings: Codable, Equatable {
     }
 
     static let historyFile = directory.appendingPathComponent("history.json")
-    static let directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("NoOrangeDot")
+    /// NOD_HOME points the app and the CLI at another folder, so tests never touch the real settings.
+    static let directory: URL = ProcessInfo.processInfo.environment["NOD_HOME"].map { URL(fileURLWithPath: $0) }
+        ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("NoOrangeDot")
     static let file = directory.appendingPathComponent("config.json")
     static let statusFile = directory.appendingPathComponent("status.json")
 

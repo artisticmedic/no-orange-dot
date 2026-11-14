@@ -31,7 +31,6 @@ enum CLI {
       nod input list | nod input <name>
       nod mics                           microphones that have a saved sound
       nod output <dB>
-      nod record start|stop
       nod play <name> | nod play stop    replay a recording's raw take through the current EQ, looped
       nod name [<text>|reset]            show or change the name apps see for the mic
       nod recordings                     list recordings, newest first
@@ -354,7 +353,7 @@ enum CLI {
     private static func onOff(_ a: String?, _ usage: String) throws -> Bool {
         switch a { case "on": return true; case "off": return false; default: throw Bad("Use: \(usage)") }
     }
-    private static func num(_ v: String) throws -> Double { guard let d = Double(v) else { throw Bad("\"\(v)\" isn't a number") }; return d }
+    private static func num(_ v: String) throws -> Double { guard let d = Double(v), d.isFinite else { throw Bad("\"\(v)\" isn't a number") }; return d }
     private static func pairs(_ args: ArraySlice<String>) throws -> [(String, String)] {
         try args.map { a in
             let p = a.split(separator: "=", maxSplits: 1).map(String.init)

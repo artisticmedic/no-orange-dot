@@ -6,7 +6,9 @@ import SwiftUI
 enum Main {
     static func main() {
         let args = Array(CommandLine.arguments.dropFirst())
-        if let verb = args.first, CLI.verbs.contains(verb) { exit(CLI.run(args)) }
+        // Run as `nod`, every argument is a command, so a typo prints an error and never starts a second copy of the app.
+        let asTool = (CommandLine.arguments.first as NSString?)?.lastPathComponent == "nod"
+        if asTool || args.first.map(CLI.verbs.contains) == true { exit(CLI.run(args)) }
         if let i = args.firstIndex(of: "--icon"), args.count > i + 1 {
             exit(MainActor.assumeIsolated {
                 let image = AppDelegate.dockIcon()
