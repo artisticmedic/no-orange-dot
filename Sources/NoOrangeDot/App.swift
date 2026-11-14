@@ -388,9 +388,7 @@ struct EditorView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .top, spacing: 9) {
-                if let icon = AppDelegate.appIcon(engine.appIcon) {
-                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 30, height: 30).accessibilityHidden(true)
-                }
+                HeaderLogo(appIcon: engine.appIcon, size: 30)
                 Text(Brand.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             }

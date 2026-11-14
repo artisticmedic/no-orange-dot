@@ -56,6 +56,25 @@ enum Artwork: String {
     }
 }
 
+/// The app's ring without its tile, for the headers. Paint has a light and a dark drawing; Carbon takes the text colour.
+struct HeaderLogo: View {
+    let appIcon: String
+    let size: CGFloat
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let carbon = appIcon == "carbon"
+        let name = carbon ? "carbon-ring-template" : scheme == .dark ? "paint-ring-dark" : "paint-ring"
+        if let image = Bundle.main.url(forResource: name, withExtension: "png").flatMap({ NSImage(contentsOf: $0) }) {
+            Group {
+                if carbon { Image(nsImage: image).renderingMode(.template).resizable().interpolation(.high).foregroundStyle(.primary) }
+                else { Image(nsImage: image).resizable().interpolation(.high) }
+            }
+            .frame(width: size, height: size).accessibilityHidden(true)
+        }
+    }
+}
+
 struct ArtworkView: View {
     let art: Artwork
     var tint: Color = .secondary

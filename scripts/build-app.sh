@@ -22,6 +22,8 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$SET" -o "$APP/Contents/Resources/AppIcon.icns"
 for i in paint carbon; do [ -f "$ROOT/assets/icons/$i.png" ] && sips -z 512 512 "$ROOT/assets/icons/$i.png" --out "$APP/Contents/Resources/icon-$i.png" >/dev/null; done
+# The bare ring for the window and popover headers.
+cp "$ROOT"/assets/icons/*-ring*.png "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -45,9 +45,7 @@ struct MenuPanelContent: View {
         VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
-                    if let icon = AppDelegate.appIcon(engine.appIcon) {
-                        Image(nsImage: icon).resizable().interpolation(.high).frame(width: 22, height: 22).accessibilityHidden(true)
-                    }
+                    HeaderLogo(appIcon: engine.appIcon, size: 22)
                     Text(Brand.short).font(.system(size: 15, weight: .semibold))
                     Spacer(minLength: 8)
                     if engine.running { LevelMeter(level: engine.level).frame(width: 64, height: 4) }
