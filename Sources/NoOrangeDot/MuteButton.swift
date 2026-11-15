@@ -43,7 +43,7 @@ struct MuteButton: View {
     var body: some View {
         Button(action: action) {
             // The icon and the first letter never move. Both icons and both words are laid out at once and
-            // only their opacity changes, so nothing is redrawn or re-centred when the state flips.
+            // only their opacity changes, so nothing is re-centred when the state flips and the label rides with the face.
             HStack(spacing: 7) {
                 ZStack {
                     Image(systemName: "mic.fill").opacity(muted ? 0 : 1)
@@ -57,7 +57,6 @@ struct MuteButton: View {
             }
             // Centred for the shorter word, which is the one on screen most of the time.
             .offset(x: 3)
-            .transaction { $0.animation = nil }
         }
             .buttonStyle(MuteButtonStyle(muted: muted, showPressed: showPressed))
             .help(muted ? "Unmute the microphone" : "Mute the microphone")
