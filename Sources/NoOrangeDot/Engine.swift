@@ -443,6 +443,8 @@ final class Engine: ObservableObject {
             if HAL.device(uid: Brand.micUID) != micDevice { listenerDevice = nil; rebuild() }
             // Another app can change the mic's sample rate. The EQ is computed for one rate, so follow it.
             else if builtRate > 0, let source = HAL.device(uid: inputUID), HAL.sampleRate(source) != builtRate { rebuild() }
+            // Setup can fail while Core Audio is still restarting. Keep trying until it holds.
+            else if driverInstalled, ioProc == nil, ticks % 40 == 0 { rebuild() }
             pollConfig(); writeStatus()
             if ticks % 20 == 0 { refreshListeners() }
             if ticks % 20 == 0 || gainLockDB != nil { refreshMicGain() }

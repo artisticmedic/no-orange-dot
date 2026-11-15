@@ -120,7 +120,7 @@ swift scripts/measure-latency.swift   # plays five short sounds and records both
 
 Measured on an Apple silicon MacBook Pro with its built-in microphone at 48 kHz: the virtual mic hears
 a sound about 20 ms after the real one. The app uses about 0.2% of one core while the mic is closed and
-about 4% while an app is using the mic with the editor window open.
+4 to 8% while an app is using the mic with the editor window open.
 
 ## Credits and license
 
