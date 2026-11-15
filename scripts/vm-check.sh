@@ -9,7 +9,7 @@ APP="/Applications/Tim's Amazing No Orange Dot Microphone EQ.app"
 BIN="$APP/Contents/MacOS/NoOrangeDot"
 [ -f "$PKG" ] || { echo "no $PKG; run scripts/build-installer.sh --notarize"; exit 2 }
 
-LEASE=$(vm get --for no-orange-dot --reason "installer clean-install check" --wait) || { echo "no guest; nothing was checked"; exit 2 }
+LEASE=$(vm get --for no-orange-dot --reason "installer clean-install check" --wait 3h) || { echo "no guest; nothing was checked"; exit 2 }
 trap 'vm give "$LEASE" >/dev/null' EXIT
 fails=0
 check() { # name, command run in the guest
