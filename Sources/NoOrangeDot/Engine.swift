@@ -196,6 +196,9 @@ final class Engine: ObservableObject {
     @Published var listenerIcon: NSImage?
     var listenerPID: pid_t = 0
 
+    var aggregateUID = ""
+    var aggregateCount = 0
+
     // MARK: Setup
 
     /// Creating our own private aggregate also fires the device-list listener, so only rebuild when
@@ -264,9 +267,15 @@ final class Engine: ObservableObject {
         stereoInput = HAL.inputChannels(source) == 2
         stereoFlag = stereoInput
 
+        // After Core Audio restarts, the aggregate made before can come back under its old name while this
+        // app no longer holds it. A second one with the same name is refused, so remove the old one and
+        // give each new one its own name.
+        if let stale = HAL.device(uid: aggregateUID) { AudioHardwareDestroyAggregateDevice(stale) }
+        aggregateCount += 1
+        aggregateUID = "\(Brand.bundleID).engine.\(getpid()).\(aggregateCount)"
         let desc: [String: Any] = [
             kAudioAggregateDeviceNameKey: "\(Brand.short) Engine",
-            kAudioAggregateDeviceUIDKey: "\(Brand.bundleID).engine.\(getpid())",
+            kAudioAggregateDeviceUIDKey: aggregateUID,
             kAudioAggregateDeviceIsPrivateKey: 1,
             kAudioAggregateDeviceIsStackedKey: 0,
             kAudioAggregateDeviceMainSubDeviceKey: inputUID,
