@@ -289,7 +289,7 @@ struct SliderRow: View {
     }
 }
 
-/// Mute and Record in the window's top bar. Tinted while they are on.
+/// Listen and Record in the window's top bar. Tinted while they are on.
 struct TopBarButtonStyle: ButtonStyle {
     var active: Bool
     var tint: Color
@@ -393,6 +393,9 @@ struct EditorView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 10).padding(.bottom, 12)
+            if engine.driverInstalled {
+                MuteButton(muted: engine.muted) { engine.muted.toggle() }.padding(.horizontal, 4).padding(.bottom, 12)
+            }
             ForEach(EditorTab.allCases) { t in
                 Button { tab = t } label: {
                     HStack(spacing: 10) {
@@ -495,9 +498,6 @@ struct EditorView: View {
                     .buttonStyle(TopBarButtonStyle(active: engine.listenBack, tint: .accentColor))
                     .help("Hear your own voice, with the EQ, in your headphones")
                     .accessibilityLabel(engine.listenBack ? "Stop listening to yourself" : "Listen to yourself")
-                Button { engine.muted.toggle() } label: { Label(engine.muted ? "Muted" : "Mute", systemImage: engine.muted ? "mic.slash.fill" : "mic.slash") }
-                    .buttonStyle(TopBarButtonStyle(active: engine.muted, tint: .orange))
-                    .accessibilityLabel(engine.muted ? "Unmute" : "Mute")
                 Button { engine.toggleRecording() } label: { Label(engine.recording ? "Stop" : "Record", systemImage: engine.recording ? "stop.fill" : "record.circle") }
                     .buttonStyle(TopBarButtonStyle(active: engine.recording, tint: .red))
                     .accessibilityLabel(engine.recording ? "Stop recording" : "Record")
@@ -790,11 +790,12 @@ enum Render {
                 ("editor-recordings", AnyView(EditorView(tab: .recordings).environmentObject(engine))),
                 ("editor-playing", AnyView(EditorView(tab: .recordings).environmentObject(engine).onAppear { engine.auditioning = engine.recordings.first?.url; engine.meters.auditionProgress = 0.4 })),
                 ("editor-settings", AnyView(EditorView(tab: .settings).environmentObject(engine))),
+                ("mute-button", AnyView(MuteButtonSheet())),
             ]
             for (name, view) in views {
                 if name != "editor-playing" { engine.auditioning = nil }
                 let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, scheme))
-                let size = name == "panel" ? host.fittingSize : NSSize(width: 980, height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700)
+                let size = !name.hasPrefix("editor") ? host.fittingSize : NSSize(width: 980, height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700)
                 host.frame = NSRect(origin: .zero, size: size)
                 let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
