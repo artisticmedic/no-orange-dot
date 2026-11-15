@@ -41,7 +41,24 @@ struct MuteButton: View {
     var showPressed = false
     var action: () -> Void = {}
     var body: some View {
-        Button(action: action) { Label(muted ? "Muted" : "Mute", systemImage: muted ? "mic.slash.fill" : "mic.fill") }
+        Button(action: action) {
+            // The icon and the first letter never move. Both icons and both words are laid out at once and
+            // only their opacity changes, so nothing is redrawn or re-centred when the state flips.
+            HStack(spacing: 7) {
+                ZStack {
+                    Image(systemName: "mic.fill").opacity(muted ? 0 : 1)
+                    Image(systemName: "mic.slash.fill").opacity(muted ? 1 : 0)
+                }
+                .frame(width: 20)
+                ZStack(alignment: .leading) {
+                    Text("Mute").opacity(muted ? 0 : 1)
+                    Text("Muted").opacity(muted ? 1 : 0)
+                }
+            }
+            // Centred for the shorter word, which is the one on screen most of the time.
+            .offset(x: 3)
+            .transaction { $0.animation = nil }
+        }
             .buttonStyle(MuteButtonStyle(muted: muted, showPressed: showPressed))
             .help(muted ? "Unmute the microphone" : "Mute the microphone")
             .accessibilityLabel(muted ? "Unmute" : "Mute")
