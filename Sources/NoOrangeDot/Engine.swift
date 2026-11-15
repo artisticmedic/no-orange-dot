@@ -32,11 +32,11 @@ final class Engine: ObservableObject {
         }
     }
     /// The chosen microphone when it has been unplugged and another stands in. Plugging it back in returns to it.
-    private var returnTo: String? { didSet { if returnTo != oldValue { changed() } } }
-    private var fallingBack = false
-    private var builtRate = 0.0
+    var returnTo: String? { didSet { if returnTo != oldValue { changed() } } }
+    var fallingBack = false
+    var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
-    private var mics: [String: MicProfile] = [:]
+    var mics: [String: MicProfile] = [:]
     @Published var bands: [Band] { didSet { noteHistory(oldValue); pushDSP(); changed() } }
     @Published var dynamics: Dynamics { didSet { pushDSP(); changed() } }
     @Published var bypass: Bool { didSet { pushDSP(); changed() } }
@@ -50,11 +50,11 @@ final class Engine: ObservableObject {
     @Published var micGain: HAL.Gain?
     /// Hear yourself: the processed mic played to the Mac's output. Off at every launch.
     @Published var listenBack = false { didSet { if listenBack != oldValue { applyListenBack() } } }
-    private let listener = ListenBack()
+    let listener = ListenBack()
     @Published var gainLockDB: Double? { didSet { if gainLockDB != oldValue { changed(); refreshMicGain() } } }
-    private var historyBefore: [Band]?
-    private var historyWork: DispatchWorkItem?
-    private var historyUID = ""
+    var historyBefore: [Band]?
+    var historyWork: DispatchWorkItem?
+    var historyUID = ""
     @Published var icon: String { didSet { changed() } }
     @Published var appIcon = "paint" { didSet { if appIcon != oldValue { changed() } } }
     @Published var showInDock = false { didSet { if showInDock != oldValue { changed() } } }
@@ -76,7 +76,7 @@ final class Engine: ObservableObject {
     // Replaying a raw take through the EQ, to hear a change on the same words.
     @Published var auditioning: URL?
     @Published var auditionLoop = true { didSet { player.loop = auditionLoop } }
-    private let player = AuditionPlayer()
+    let player = AuditionPlayer()
 
     @Published var measureProgress: Double?     // 0...1 while automatic EQ is listening, otherwise nil
     @Published var autoResult: AutoEQ.Result?
@@ -87,52 +87,52 @@ final class Engine: ObservableObject {
     /// Twelfth-octave centres from 40 Hz to about 15 kHz, for drawing.
     static let displayCentres: [Double] = (0..<104).map { 40 * pow(2, Double($0) / 12) }
     static let displayFloor: Float = -100, displayCeiling: Float = -15
-    private static let ringSize = 8192
-    private let rawRing = UnsafeMutablePointer<Float>.allocate(capacity: ringSize)
-    private let postRing = UnsafeMutablePointer<Float>.allocate(capacity: ringSize)
-    private var ringIndex = 0
-    private let analyzer = Spectrum(size: 4096)
-    private static let historyWidth = 180
-    private var heat = [UInt8](repeating: 0, count: historyWidth * 104 * 4)
-    private var historyColumn = 0
-    private var capture: UnsafeMutablePointer<Float>?
-    private var captureCapacity = 0, captureCount = 0, captureGoal = 0
-    private var captureFlag = false
-    private var measured: (samples: [Float], levels: [Double], seconds: Double, sampleRate: Double)?
-    private var measureDone: ((AutoEQ.Result?) -> Void)?
-    private var monitoringBeforeMeasure = false
+    static let ringSize = 8192
+    let rawRing = UnsafeMutablePointer<Float>.allocate(capacity: ringSize)
+    let postRing = UnsafeMutablePointer<Float>.allocate(capacity: ringSize)
+    var ringIndex = 0
+    let analyzer = Spectrum(size: 4096)
+    static let historyWidth = 180
+    var heat = [UInt8](repeating: 0, count: historyWidth * 104 * 4)
+    var historyColumn = 0
+    var capture: UnsafeMutablePointer<Float>?
+    var captureCapacity = 0, captureCount = 0, captureGoal = 0
+    var captureFlag = false
+    var measured: (samples: [Float], levels: [Double], seconds: Double, sampleRate: Double)?
+    var measureDone: ((AutoEQ.Result?) -> Void)?
+    var monitoringBeforeMeasure = false
 
-    private var applying = false
-    private var saveWork: DispatchWorkItem?
-    private var configStamp: Date?
-    private var lastStatus = Status()
-    private var ticks = 0
+    var applying = false
+    var saveWork: DispatchWorkItem?
+    var configStamp: Date?
+    var lastStatus = Status()
+    var ticks = 0
 
     private(set) var sampleRate = 48000.0
-    private let dsp = DSPChain()
-    private var micDevice: AudioDeviceID?
-    private var aggregate: AudioDeviceID = kAudioObjectUnknown
-    private var ioProc: AudioDeviceIOProcID?
-    private var listenerDevice: AudioDeviceID?
-    private var renameTried: String?
-    private var meterTimer: Timer?
-    private var deviceSignature = ""
+    let dsp = DSPChain()
+    var micDevice: AudioDeviceID?
+    var aggregate: AudioDeviceID = kAudioObjectUnknown
+    var ioProc: AudioDeviceIOProcID?
+    var listenerDevice: AudioDeviceID?
+    var renameTried: String?
+    var meterTimer: Timer?
+    var deviceSignature = ""
 
     // Touched from the audio thread. Plain stores; no locks, no allocation.
-    private static let maxFrames = 16384
-    private let left = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-    private let right = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-    private let interleaved = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames * 2)
-    private var mutedFlag = false
-    private var stereoFlag = false
-    private var recordFlag = false
-    private var recordFile: ExtAudioFileRef?
-    private var recordRawFile: ExtAudioFileRef?
-    private let rawLeft = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-    private let rawRight = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-    private var peak: Float = 0
-    private var wakeRequestedAt: UInt64 = 0
-    private var firstCallbackAt: UInt64 = 0
+    static let maxFrames = 16384
+    let left = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    let right = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    let interleaved = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames * 2)
+    var mutedFlag = false
+    var stereoFlag = false
+    var recordFlag = false
+    var recordFile: ExtAudioFileRef?
+    var recordRawFile: ExtAudioFileRef?
+    let rawLeft = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    let rawRight = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    var peak: Float = 0
+    var wakeRequestedAt: UInt64 = 0
+    var firstCallbackAt: UInt64 = 0
 
     init() {
         var s = Settings()
@@ -190,20 +190,26 @@ final class Engine: ObservableObject {
         rebuild()
     }
 
+    /// Names of the apps reading the virtual mic right now.
+    @Published var listeners: [String] = []
+    /// The icon of the first app using the mic, when it is an app with one.
+    @Published var listenerIcon: NSImage?
+    var listenerPID: pid_t = 0
+
     // MARK: Setup
 
     /// Creating our own private aggregate also fires the device-list listener, so only rebuild when
     /// the real inputs or the driver actually changed. Otherwise the engine tears itself down in a loop.
-    private func currentSignature() -> String {
+    func currentSignature() -> String {
         let driver = HAL.device(uid: Brand.micUID) != nil && HAL.device(uid: Brand.feedUID) != nil
         return HAL.inputDevices().map(\.uid).sorted().joined(separator: "|") + (driver ? "#driver" : "")
     }
 
-    private func devicesChanged() {
+    func devicesChanged() {
         if currentSignature() != deviceSignature { rebuild() }
     }
 
-    private func coreAudioRestarted() {
+    func coreAudioRestarted() {
         listenerDevice = nil
         renameTried = nil
         ioProc = nil
@@ -288,7 +294,7 @@ final class Engine: ObservableObject {
         clientsChanged()
     }
 
-    private func teardown() {
+    func teardown() {
         if let p = ioProc, aggregate != kAudioObjectUnknown { AudioDeviceDestroyIOProcID(aggregate, p) }
         ioProc = nil
         if aggregate != kAudioObjectUnknown { AudioHardwareDestroyAggregateDevice(aggregate) }
@@ -300,7 +306,7 @@ final class Engine: ObservableObject {
     // MARK: The name apps see
 
     /// Renames the virtual mic to match `micName`. Needs a driver that allows it; older ones don't.
-    private func applyMicName() {
+    func applyMicName() {
         guard let mic = micDevice else { return }
         let current = HAL.string(mic, kAudioObjectPropertyName) ?? Brand.micName
         micDisplayName = current
@@ -319,62 +325,9 @@ final class Engine: ObservableObject {
         }
     }
 
-    // MARK: Status in words
-
-    /// Names of the apps reading the virtual mic right now.
-    @Published var listeners: [String] = []
-    /// The icon of the first app using the mic, when it is an app with one.
-    @Published var listenerIcon: NSImage?
-    private var listenerPID: pid_t = 0
-
-    var markState: AppMark.State { muted ? .muted : recording ? .recording : running ? .live : .idle }
-
-    var statusColor: Color {
-        if recording { return .red }
-        if muted { return .orange }
-        return running ? .green : .secondary
-    }
-
-    var statusTitle: String {
-        if !driverInstalled { return "Driver missing" }
-        if recording { return "Recording" }
-        if muted { return "Muted" }
-        if !running { return "Mic off" }
-        let who = Self.sentenceList(listeners)
-        if !who.isEmpty { return "\(who) \(listeners.count == 1 ? "is" : "are") using the mic" }
-        return listenBack ? "Listening to yourself" : monitoring ? "Mic open for the live view" : "Mic open"
-    }
-
-    var statusDetail: String {
-        if !driverInstalled { return "Run the installer to put the microphone back" }
-        let who = Self.sentenceList(listeners)
-        if muted { return who.isEmpty ? "The mic stays closed" : "\(who) \(listeners.count == 1 ? "hears" : "hear") silence" }
-        if recording { return "Saving to \(recordingsURL.lastPathComponent)" }
-        if !running { return "No app is using it" }
-        return ""
-    }
-
-    private static func sentenceList(_ names: [String]) -> String {
-        switch names.count {
-        case 0: return ""
-        case 1: return names[0]
-        case 2: return "\(names[0]) and \(names[1])"
-        default: return "\(names[0]) and \(names.count - 1) others"
-        }
-    }
-
-    private func refreshListeners() {
-        let now = clientsActive, let_mic = micDevice
-        guard now, let mic = let_mic else { if !listeners.isEmpty { listeners = []; listenerIcon = nil; listenerPID = 0 }; return }
-        let clients = HAL.inputClients(of: mic), names = clients.map(\.name)
-        if names != listeners { listeners = names }
-        let pid = clients.first?.pid ?? 0
-        if pid != listenerPID { listenerPID = pid; listenerIcon = pid == 0 ? nil : NSRunningApplication(processIdentifier: pid)?.icon }
-    }
-
     // MARK: System microphone
 
-    private func refreshSystemMicrophone() {
+    func refreshSystemMicrophone() {
         isSystemMicrophone = HAL.defaultInputUID() == Brand.micUID
     }
 
@@ -394,19 +347,19 @@ final class Engine: ObservableObject {
 
     // MARK: On-demand start/stop
 
-    private func clientsChanged() {
+    func clientsChanged() {
         guard let mic = micDevice else { return }
         clientsActive = HAL.uint32(mic, kAudioDevicePropertyDeviceIsRunningSomewhere) != 0
         refreshListeners()
         evaluate()
     }
 
-    private func evaluate() {
+    func evaluate() {
         let want = (clientsActive && !muted) || recording || monitoring || listenBack
         if want && !running { start() } else if !want && running { stop() }
     }
 
-    private func start() {
+    func start() {
         guard let p = ioProc, aggregate != kAudioObjectUnknown else { return }
         firstCallbackAt = 0
         wakeRequestedAt = mach_absolute_time()
@@ -414,7 +367,7 @@ final class Engine: ObservableObject {
         if err == noErr { running = true } else { error = "Couldn't open the microphone (error \(err))." }
     }
 
-    private func stop() {
+    func stop() {
         guard running, let p = ioProc else { return }
         AudioDeviceStop(aggregate, p)
         running = false
@@ -424,7 +377,7 @@ final class Engine: ObservableObject {
 
     // MARK: Audio thread
 
-    private func render(_ input: UnsafePointer<AudioBufferList>, _ output: UnsafeMutablePointer<AudioBufferList>) {
+    func render(_ input: UnsafePointer<AudioBufferList>, _ output: UnsafeMutablePointer<AudioBufferList>) {
         if firstCallbackAt == 0 { firstCallbackAt = mach_absolute_time() }
         let outs = UnsafeMutableAudioBufferListPointer(output)
         for b in outs { if let d = b.mData { memset(d, 0, Int(b.mDataByteSize)) } }
@@ -473,7 +426,7 @@ final class Engine: ObservableObject {
         }
     }
 
-    private func write(_ file: ExtAudioFileRef, _ l: UnsafeMutablePointer<Float>, _ r: UnsafeMutablePointer<Float>, frames: Int, stereo: Bool) {
+    func write(_ file: ExtAudioFileRef, _ l: UnsafeMutablePointer<Float>, _ r: UnsafeMutablePointer<Float>, frames: Int, stereo: Bool) {
         if stereo {
             for n in 0..<frames { interleaved[n * 2] = l[n]; interleaved[n * 2 + 1] = r[n] }
             var abl = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(frames * 8), mData: interleaved))
@@ -484,7 +437,7 @@ final class Engine: ObservableObject {
         }
     }
 
-    private func tick() {
+    func tick() {
         ticks += 1
         if ticks % 10 == 0 {
             if HAL.device(uid: Brand.micUID) != micDevice { listenerDevice = nil; rebuild() }
@@ -513,451 +466,6 @@ final class Engine: ObservableObject {
         }
     }
 
-    // MARK: Live analysis
-
-    private func analyze(raw: UnsafeMutablePointer<Float>, post postRing: UnsafeMutablePointer<Float>, end: Int, rate: Double) {
-        let n = analyzer.size, mask = Self.ringSize - 1
-        let rawRing = raw, sampleRate = rate
-        var block = [Float](repeating: 0, count: n), power = [Float](repeating: 0, count: n / 2)
-        func levels(_ ring: UnsafeMutablePointer<Float>, _ previous: [Float]) -> [Float] {
-            for i in 0..<n { block[i] = ring[(end - n + i) & mask] }
-            block.withUnsafeBufferPointer { analyzer.power($0.baseAddress!, into: &power) }
-            let now = Spectrum.bands(power: power, sampleRate: sampleRate, centres: Self.displayCentres, fraction: 12).map(Float.init)
-            guard previous.count == now.count else { return now }
-            // Rise quickly, fall slowly, so the shape is readable instead of flickering.
-            return zip(now, previous).map { $0 > $1 ? $1 + ($0 - $1) * 0.6 : $1 + ($0 - $1) * 0.12 }
-        }
-        scope.spectrumRaw = levels(rawRing, scope.spectrumRaw)
-        let post = levels(postRing, [])
-        scope.spectrumPost = scope.spectrumPost.count == post.count ? zip(post, scope.spectrumPost).map { $0 > $1 ? $1 + ($0 - $1) * 0.6 : $1 + ($0 - $1) * 0.12 } : post
-
-        // Spectrogram: one new column per tick, scrolling left once the image is full.
-        let w = Self.historyWidth, h = post.count
-        if historyColumn >= w {
-            heat.withUnsafeMutableBytes { raw in
-                let p = raw.baseAddress!
-                for row in 0..<h { memmove(p + row * w * 4, p + row * w * 4 + 4, (w - 1) * 4) }
-            }
-            historyColumn = w - 1
-        }
-        for (i, v) in post.enumerated() {
-            let t = min(max((v - Self.displayFloor) / (Self.displayCeiling - Self.displayFloor), 0), 1)
-            let o = ((h - 1 - i) * w + historyColumn) * 4
-            let c = Self.heat(t)
-            heat[o] = c.0; heat[o + 1] = c.1; heat[o + 2] = c.2; heat[o + 3] = 255
-        }
-        historyColumn += 1
-        let data = Data(heat) as CFData
-        if let provider = CGDataProvider(data: data) {
-            scope.spectrogram = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
-        }
-    }
-
-    /// Quiet to loud: near-black, deep blue, magenta, orange, pale yellow.
-    private static func heat(_ t: Float) -> (UInt8, UInt8, UInt8) {
-        let stops: [(Float, Float, Float)] = [(0.05, 0.05, 0.09), (0.16, 0.10, 0.42), (0.62, 0.16, 0.50), (0.96, 0.45, 0.22), (0.99, 0.93, 0.62)]
-        let x = t * Float(stops.count - 1), i = min(Int(x), stops.count - 2), u = x - Float(i)
-        let a = stops[i], b = stops[i + 1]
-        return (UInt8((a.0 + (b.0 - a.0) * u) * 255), UInt8((a.1 + (b.1 - a.1) * u) * 255), UInt8((a.2 + (b.2 - a.2) * u) * 255))
-    }
-
-    // MARK: Automatic EQ
-
-    /// Listens to the raw mic for a while, then works out an EQ. The mic is opened for the
-    /// measurement and closed again afterwards unless something else needs it.
-    func startMeasure(seconds: Double = 20, done: ((AutoEQ.Result?) -> Void)? = nil) {
-        guard driverInstalled, ioProc != nil, !captureFlag else { done?(nil); return }
-        let goal = Int(min(max(seconds, 5), 60) * sampleRate)
-        if captureCapacity < goal {
-            capture?.deallocate()
-            capture = UnsafeMutablePointer<Float>.allocate(capacity: goal)
-            captureCapacity = goal
-        }
-        captureCount = 0; captureGoal = goal
-        autoResult = nil; autoProblem = nil; measured = nil
-        measureDone = done
-        monitoringBeforeMeasure = monitoring
-        monitoring = true
-        measureProgress = 0
-        captureFlag = true
-    }
-
-    func cancelMeasure() {
-        guard captureFlag else { return }
-        captureFlag = false
-        measureProgress = nil
-        monitoring = monitoringBeforeMeasure
-        measureDone?(nil); measureDone = nil
-    }
-
-    private func finishMeasure() {
-        captureFlag = false
-        measureProgress = nil
-        monitoring = monitoringBeforeMeasure
-        guard let capture else { return }
-        let samples = Array(UnsafeBufferPointer(start: capture, count: captureCount)), rate = sampleRate
-        DispatchQueue.global(qos: .userInitiated).async {
-            let m = AutoEQ.measure(samples, sampleRate: rate)
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if let m {
-                    self.measured = (samples, m.levels, m.seconds, rate)
-                    self.refit()
-                } else {
-                    self.autoProblem = "That was too quiet to measure. Speak at your normal level, close to the mic, for the whole time."
-                }
-                self.measureDone?(self.autoResult); self.measureDone = nil
-            }
-        }
-    }
-
-    private func refit() {
-        guard let m = measured else { return }
-        autoResult = AutoEQ.fit(levels: m.levels, seconds: m.seconds, target: autoTarget, strength: autoStrength, sampleRate: m.sampleRate)
-    }
-
-    func useAutoEQ() {
-        guard let r = autoResult else { return }
-        bands = r.bands
-        bypass = false
-        autoResult = nil; measured = nil
-    }
-
-    func discardAutoEQ() { autoResult = nil; autoProblem = nil; measured = nil }
-
-    /// The measured recording as a file, raw or with the suggested EQ, for listening before deciding.
-    func audition(processed: Bool) -> URL? {
-        guard let m = measured, let r = autoResult else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(processed ? "nod-after.wav" : "nod-before.wav")
-        let samples = processed ? AutoEQ.apply(r.bands, to: m.samples, sampleRate: m.sampleRate) : m.samples
-        return AutoEQ.write(samples, sampleRate: m.sampleRate, to: url) ? url : nil
-    }
-
-    // MARK: config.json and status.json
-
-    private var activeProfile: MicProfile {
-        var p = MicProfile()
-        p.name = inputs.first(where: { $0.uid == inputUID })?.name ?? mics[inputUID]?.name ?? ""
-        p.equalizer = !bypass; p.outputGainDB = outputGainDB; p.bands = bands; p.dynamics = dynamics; p.gainLockDB = gainLockDB
-        return p
-    }
-
-    private var settings: Settings {
-        var s = Settings()
-        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.returnToUID = returnTo ?? ""; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut
-        s.mics = mics
-        s.presets = presets
-        if !inputUID.isEmpty { s.mics[inputUID] = activeProfile }
-        return s
-    }
-
-    private func load(_ p: MicProfile) {
-        let was = applying
-        applying = true
-        if p.equalizer == bypass { bypass = !p.equalizer }
-        if p.outputGainDB != outputGainDB { outputGainDB = p.outputGainDB }
-        if p.gainLockDB != gainLockDB { gainLockDB = p.gainLockDB }
-        if p.bands != bands { bands = p.bands }
-        if p.dynamics != dynamics { dynamics = p.dynamics }
-        applying = was
-    }
-
-    /// The microphone changed: keep the old one's sound, bring in the new one's. A microphone seen
-    /// for the first time starts flat.
-    private func switchProfile(from old: String) {
-        guard !applying else { return }
-        if !old.isEmpty {
-            var p = activeProfile
-            p.name = inputs.first(where: { $0.uid == old })?.name ?? mics[old]?.name ?? ""
-            mics[old] = p
-        }
-        load(mics[inputUID] ?? MicProfile())
-    }
-
-    // MARK: Presets
-
-    /// The preset the current sound matches exactly, if any.
-    var currentPreset: SoundPreset? { let now = activeProfile; return presets.first { $0.matches(now) } }
-
-    func savePreset(named name: String) {
-        let name = name.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        SoundPreset.save(SoundPreset(name: name, from: activeProfile), in: &presets)
-    }
-
-    func use(_ preset: SoundPreset) {
-        var p = activeProfile
-        preset.apply(to: &p)
-        p.bands = p.bands.map { var b = $0; b.id = UUID(); return b }
-        load(p)
-        changed()
-    }
-
-    func deletePreset(_ preset: SoundPreset) { presets.removeAll { $0.id == preset.id } }
-
-    // MARK: History
-
-    /// Remembers the curve from before a run of edits. A drag is hundreds of small changes, so the
-    /// snapshot is taken once the curve has been still for a moment.
-    private func noteHistory(_ old: [Band]) {
-        guard historyUID == inputUID else { historyUID = inputUID; historyBefore = nil; return } // another mic's curve came in
-        guard old != bands else { return }
-        if historyBefore == nil { historyBefore = old }
-        historyWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, let before = self.historyBefore else { return }
-            self.historyBefore = nil
-            guard before != self.bands, self.history.first?.bands != before else { return }
-            let name = self.inputs.first(where: { $0.uid == self.inputUID })?.name ?? ""
-            self.history.insert(EQSnapshot(date: Date(), mic: name, bands: before), at: 0)
-            if self.history.count > 40 { self.history.removeLast(self.history.count - 40) }
-            EQSnapshot.save(self.history)
-        }
-        historyWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
-    }
-
-    /// Brings an earlier curve back. The curve it replaces goes into the history in turn.
-    func restore(_ snapshot: EQSnapshot) { bands = snapshot.bands.map { var b = $0; b.id = UUID(); return b } }
-
-    func clearHistory() { history = []; EQSnapshot.save(history) }
-
-    // MARK: Listen back
-
-    private func applyListenBack() {
-        if listenBack {
-            if ListenBack.outputIsBuiltInSpeakers {
-                error = "Listen back needs headphones. Through the Mac's speakers the mic would hear itself and howl."
-                listenBack = false
-                return
-            }
-            listener.source = { [unowned self] in (self.postRing, Self.ringSize, self.ringIndex) }
-            evaluate()
-            if !listener.start(sampleRate: sampleRate) { error = "Couldn't start listen back."; listenBack = false }
-        } else {
-            listener.stop()
-            evaluate()
-        }
-        if listenBack, error?.hasPrefix("Listen back") == true { error = nil }
-    }
-
-    /// The Mac's output changed. Stop rather than risk the speakers; start again on the new output otherwise.
-    private func outputChanged() {
-        guard listenBack else { return }
-        listenBack = false
-        if !ListenBack.outputIsBuiltInSpeakers { listenBack = true }
-    }
-
-    // MARK: Hardware gain
-
-    /// Reads the gain, and when it is locked, puts it back if something else has moved it.
-    private func refreshMicGain() {
-        guard let dev = HAL.device(uid: inputUID) else { if micGain != nil { micGain = nil }; return }
-        var now = HAL.inputGain(dev)
-        if let lock = gainLockDB, let g = now, abs(g.db - lock) > 0.05 {
-            HAL.setInputGain(dev, db: lock)
-            now = HAL.inputGain(dev)
-            // Hardware gain moves in steps. If it can't land on the locked value, hold the step it did land on.
-            if let landed = now?.db, abs(landed - lock) > 0.05 { gainLockDB = landed }
-        }
-        if now != micGain { micGain = now }
-    }
-
-    /// A change made here. While the gain is locked, this moves the lock with it.
-    func setMicGain(_ db: Double) {
-        guard let dev = HAL.device(uid: inputUID), let g = micGain else { return }
-        HAL.setInputGain(dev, db: min(max(db, g.min), g.max))
-        if gainLockDB != nil, let landed = HAL.inputGain(dev)?.db { gainLockDB = landed }
-        refreshMicGain()
-    }
-
-    func setGainLock(_ on: Bool) {
-        refreshMicGain()
-        gainLockDB = on ? micGain?.db : nil
-    }
-
-    /// A change made in the app. Saved shortly after it settles, unless config.json is broken:
-    /// then nothing is written, so a hand edit in progress is never overwritten.
-    private func changed() {
-        guard !applying, configProblem == nil else { return }
-        saveWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.settings.save()
-            self.configStamp = Settings.modified()
-        }
-        saveWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-    }
-
-    /// Picks up edits made to config.json by hand, by a script or by an agent.
-    private func pollConfig() {
-        let stamp = Settings.modified()
-        guard stamp != configStamp else { return }
-        configStamp = stamp
-        switch Settings.load() {
-        case .missing: break
-        case .invalid(let why): configProblem = why
-        case .ok(let s):
-            configProblem = nil
-            guard s != settings else { return }
-            applying = true
-            mics = s.mics
-            if s.muted != muted { muted = s.muted }
-            if s.icon != icon { icon = s.icon }
-            if s.appIcon != appIcon { appIcon = s.appIcon }
-            if s.showInDock != showInDock { showInDock = s.showInDock }
-            if s.autoUpdate != autoUpdate { autoUpdate = s.autoUpdate }
-            if s.updateFeed != updateFeed { updateFeed = s.updateFeed }
-            if s.presets != presets { presets = s.presets }
-            if s.returnToUID != (returnTo ?? "") { returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID }
-            if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
-            if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }
-            if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
-            if s.micName != micName { micName = s.micName }
-            if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { inputUID = s.inputUID }
-            applying = false
-            load(mics[inputUID] ?? MicProfile())
-        }
-    }
-
-    private func writeStatus() {
-        let st = Status(driverInstalled: driverInstalled, micOpen: running, appListening: clientsActive, systemMicrophone: isSystemMicrophone, muted: muted, recording: recording,
-                        input: inputs.first(where: { $0.uid == inputUID })?.name ?? "", sampleRate: sampleRate,
-                        lastWakeMs: lastWakeMs.map { ($0 * 10).rounded() / 10 }, lastRecording: lastRecording?.path, problem: configProblem ?? error, usedBy: listeners, micName: micDisplayName, playing: auditioning?.lastPathComponent)
-        guard st != lastStatus else { return }
-        lastStatus = st
-        st.save()
-    }
-
-    func handle(command: String) {
-        switch command {
-        case "record-start": if !recording { toggleRecording() }
-        case "record-stop": if recording { toggleRecording() }
-        case "record-toggle": toggleRecording()
-        case "system-on": setSystemMicrophone(true)
-        case "system-off": setSystemMicrophone(false)
-        case "listen-on": listenBack = true
-        case "listen-off": listenBack = false
-        case "gain-lock": setGainLock(true)
-        case "gain-unlock": setGainLock(false)
-        case _ where command.hasPrefix("gain "): if let v = Double(command.dropFirst(5)) { refreshMicGain(); setMicGain(v) }
-        case _ where command.hasPrefix("history-restore "): if let n = Int(command.dropFirst(16)), history.indices.contains(n - 1) { restore(history[n - 1]) }
-        case "history-clear": clearHistory()
-        case "play-stop": stopAudition()
-        case _ where command.hasPrefix("play "):
-            let want = String(command.dropFirst(5))
-            if let r = Recording.list(in: recordingsURL).first(where: { $0.url.lastPathComponent == want || $0.url.deletingPathExtension().lastPathComponent == want }) {
-                if r.raw != nil { startAudition(r) } else { error = "That recording has no raw take, so it can't be replayed through the EQ." }
-            } else { error = "No recording is named \(want)." }
-        case _ where command.hasPrefix("autoeq-measure"):
-            // autoeq-measure <seconds> <target> <strength> <apply|keep>
-            let p = command.split(separator: " ").map(String.init)
-            let out = Settings.directory.appendingPathComponent("autoeq.json")
-            if p.count > 2, let t = AutoEQ.Target(rawValue: p[2]) { autoTarget = t }
-            if p.count > 3, let v = Double(p[3]) { autoStrength = v }
-            let apply = p.count > 4 && p[4] == "apply"
-            startMeasure(seconds: p.count > 1 ? Double(p[1]) ?? 20 : 20) { [weak self] result in
-                let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys]
-                var data = try? e.encode(["error": self?.autoProblem ?? "The measurement didn't finish."])
-                if var r = result { r.centres = []; r.measured = []; r.wanted = []; data = try? e.encode(r) }
-                try? data?.write(to: out, options: .atomic)
-                if apply, result != nil { self?.useAutoEQ() }
-            }
-        default: break
-        }
-        writeStatus()
-    }
-
-    // MARK: Recording
-
-    func toggleRecording() { recording ? stopRecording() : startRecording() }
-
-    private func startRecording() {
-        guard driverInstalled, ioProc != nil else { return }
-        let dir = recordingsURL
-        do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
-        catch { self.error = "Couldn't use the recordings folder at \(dir.path). Choose another one."; return }
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let url = dir.appendingPathComponent("\(f.string(from: Date())).wav")
-        guard let file = makeFile(url) else { error = "Couldn't create the recording file."; return }
-        recordFile = file
-        // The raw take, hidden beside it, so the recording can be replayed through a different EQ later.
-        recordRawFile = makeFile(Recording.rawURL(for: url))
-        recordFlag = true
-        recording = true
-        lastRecording = url
-        evaluate()
-    }
-
-    private func makeFile(_ url: URL) -> ExtAudioFileRef? {
-        let channels: UInt32 = stereoFlag ? 2 : 1
-        var fileFmt = AudioStreamBasicDescription(mSampleRate: sampleRate, mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, mBytesPerPacket: 3 * channels, mFramesPerPacket: 1,
-            mBytesPerFrame: 3 * channels, mChannelsPerFrame: channels, mBitsPerChannel: 24, mReserved: 0)
-        var clientFmt = AudioStreamBasicDescription(mSampleRate: sampleRate, mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked, mBytesPerPacket: 4 * channels, mFramesPerPacket: 1,
-            mBytesPerFrame: 4 * channels, mChannelsPerFrame: channels, mBitsPerChannel: 32, mReserved: 0)
-        var file: ExtAudioFileRef?
-        guard ExtAudioFileCreateWithURL(url as CFURL, kAudioFileWAVEType, &fileFmt, nil, AudioFileFlags.eraseFile.rawValue, &file) == noErr, let file else { return nil }
-        ExtAudioFileSetProperty(file, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &clientFmt)
-        ExtAudioFileWriteAsync(file, 0, nil) // allocate the async buffers off the audio thread
-        return file
-    }
-
-    private func stopRecording() {
-        guard recording else { return }
-        recordFlag = false
-        recording = false
-        evaluate()
-        let file = recordFile, raw = recordRawFile
-        recordFile = nil; recordRawFile = nil
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
-            if let file { ExtAudioFileDispose(file) }
-            if let raw { ExtAudioFileDispose(raw) }
-            DispatchQueue.main.async { [weak self] in self?.refreshRecordings() }
-        }
-    }
-
-    /// Moves recordings to the Trash, where they can be put back.
-    func trash(_ items: [Recording]) {
-        for r in items {
-            if auditioning == r.url { stopAudition() }
-            try? FileManager.default.trashItem(at: r.url, resultingItemURL: nil)
-            if let raw = r.raw { try? FileManager.default.trashItem(at: raw, resultingItemURL: nil) }
-        }
-        refreshRecordings()
-    }
-
-    /// Plays a recording's raw take through the current EQ, gate and compressor.
-    func startAudition(_ r: Recording) {
-        guard let raw = r.raw else { return }
-        stopAudition()
-        player.loop = auditionLoop
-        guard player.start(raw) else { error = "Couldn't play that recording."; return }
-        auditioning = r.url
-        pushDSP()
-    }
-
-    func stopAudition() {
-        guard auditioning != nil else { return }
-        player.stop()
-        auditioning = nil
-        meters.auditionProgress = 0
-        if !monitoring { scope.clear(); historyColumn = 0 }
-    }
-
-    var recordingsURL: URL { var s = Settings(); s.recordingsFolder = recordingsFolder; return s.recordingsURL }
-
-    func refreshRecordings() {
-        let folder = recordingsURL
-        DispatchQueue.global(qos: .userInitiated).async {
-            let list = Recording.list(in: folder)
-            DispatchQueue.main.async { [weak self] in if self?.recordingsURL == folder { self?.recordings = list } }
-        }
-    }
-
     // MARK: Settings
 
     func setLaunchAtLogin(_ on: Bool) {
@@ -966,7 +474,7 @@ final class Engine: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    private func pushDSP() {
+    func pushDSP() {
         dsp.set(bands: bands, dynamics: dynamics, sampleRate: sampleRate, outputGainDB: outputGainDB, bypass: bypass)
         if auditioning != nil { player.chain.set(bands: bands, dynamics: dynamics, sampleRate: player.sampleRate, outputGainDB: outputGainDB, bypass: bypass) }
     }

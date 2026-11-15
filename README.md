@@ -112,6 +112,16 @@ a release. `nod update feed <https address>` points a copy of the app at another
 
 The CLI tests run against a throwaway folder named by `NOD_HOME`, so they never touch your settings.
 
+## Delay and processor use
+
+```sh
+swift scripts/measure-latency.swift   # plays five short sounds and records both microphones
+```
+
+Measured on an Apple silicon MacBook Pro with its built-in microphone at 48 kHz: the virtual mic hears
+a sound about 20 ms after the real one. The app uses about 0.2% of one core while the mic is closed and
+about 4% while an app is using the mic with the editor window open.
+
 ## Credits and license
 
 The virtual audio driver is built from [BlackHole](https://github.com/ExistentialAudio/BlackHole)
