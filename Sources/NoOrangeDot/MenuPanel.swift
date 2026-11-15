@@ -48,7 +48,7 @@ struct MenuPanelContent: View {
                     HeaderLogo(appIcon: engine.appIcon, size: 22)
                     Text(Brand.short).font(.system(size: 15, weight: .semibold))
                     Spacer(minLength: 8)
-                    if engine.running { LevelMeter(level: engine.level).frame(width: 64, height: 4) }
+                    if engine.running { Live(engine.meters) { m in LevelMeter(level: m.level) }.frame(width: 64, height: 4) }
                 }
                 Text(status).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }

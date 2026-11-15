@@ -12,9 +12,8 @@ final class Engine: ObservableObject {
     @Published var clientsActive = false
     @Published var running = false
     @Published var recording = false
-    @Published var level: Float = 0
-    @Published var reductionDB: Float = 0
-    @Published var limiterDB: Float = 0
+    let meters = Meters()
+    let scope = Scope()
     @Published var muteShortcut = "" { didSet { if muteShortcut != oldValue { changed() } } }
     @Published var recordShortcut = "" { didSet { if recordShortcut != oldValue { changed() } } }
     @Published var lastWakeMs: Double?
@@ -73,13 +72,9 @@ final class Engine: ObservableObject {
 
     // Live analysis, for the spectrum, the spectrogram and automatic EQ. All of it needs the mic open,
     // so it only runs while `monitoring` is on, and the editor turns that off when it closes.
-    @Published var monitoring = false { didSet { evaluate(); if !monitoring { spectrumPost = []; spectrumRaw = []; spectrogram = nil; historyColumn = 0 } } }
-    @Published var spectrumPost: [Float] = []   // dB per display band, after the EQ
-    @Published var spectrumRaw: [Float] = []    // dB per display band, straight from the mic
-    @Published var spectrogram: CGImage?
+    @Published var monitoring = false { didSet { evaluate(); if !monitoring { scope.clear(); historyColumn = 0 } } }
     // Replaying a raw take through the EQ, to hear a change on the same words.
     @Published var auditioning: URL?
-    @Published var auditionProgress = 0.0
     @Published var auditionLoop = true { didSet { player.loop = auditionLoop } }
     private let player = AuditionPlayer()
 
@@ -423,8 +418,8 @@ final class Engine: ObservableObject {
         guard running, let p = ioProc else { return }
         AudioDeviceStop(aggregate, p)
         running = false
-        level = 0
-        reductionDB = 0
+        meters.level = 0
+        meters.reductionDB = 0
     }
 
     // MARK: Audio thread
@@ -495,19 +490,20 @@ final class Engine: ObservableObject {
             if HAL.device(uid: Brand.micUID) != micDevice { listenerDevice = nil; rebuild() }
             // Another app can change the mic's sample rate. The EQ is computed for one rate, so follow it.
             else if builtRate > 0, let source = HAL.device(uid: inputUID), HAL.sampleRate(source) != builtRate { rebuild() }
-            pollConfig(); refreshListeners(); writeStatus()
+            pollConfig(); writeStatus()
+            if ticks % 20 == 0 { refreshListeners() }
             if ticks % 20 == 0 || gainLockDB != nil { refreshMicGain() }
         }
         if auditioning != nil {
             if player.finished { stopAudition() } else {
-                auditionProgress = player.progress
+                meters.auditionProgress = player.progress
                 analyze(raw: player.rawRing, post: player.postRing, end: player.ringIndex, rate: player.sampleRate)
             }
         }
         guard running else { return }
-        level = peak; peak = 0
-        reductionDB = dsp.reductionMeter; dsp.reductionMeter = 0
-        limiterDB = dsp.limiterMeter; dsp.limiterMeter = 0
+        meters.level = peak; peak = 0
+        meters.reductionDB = dsp.reductionMeter; dsp.reductionMeter = 0
+        meters.limiterDB = dsp.limiterMeter; dsp.limiterMeter = 0
         if monitoring, auditioning == nil { analyze(raw: rawRing, post: postRing, end: ringIndex, rate: sampleRate) }
         if captureFlag { measureProgress = Double(captureCount) / Double(max(captureGoal, 1)); if captureCount >= captureGoal { finishMeasure() } }
         if firstCallbackAt != 0, wakeRequestedAt != 0 {
@@ -531,9 +527,9 @@ final class Engine: ObservableObject {
             // Rise quickly, fall slowly, so the shape is readable instead of flickering.
             return zip(now, previous).map { $0 > $1 ? $1 + ($0 - $1) * 0.6 : $1 + ($0 - $1) * 0.12 }
         }
-        spectrumRaw = levels(rawRing, spectrumRaw)
+        scope.spectrumRaw = levels(rawRing, scope.spectrumRaw)
         let post = levels(postRing, [])
-        spectrumPost = spectrumPost.count == post.count ? zip(post, spectrumPost).map { $0 > $1 ? $1 + ($0 - $1) * 0.6 : $1 + ($0 - $1) * 0.12 } : post
+        scope.spectrumPost = scope.spectrumPost.count == post.count ? zip(post, scope.spectrumPost).map { $0 > $1 ? $1 + ($0 - $1) * 0.6 : $1 + ($0 - $1) * 0.12 } : post
 
         // Spectrogram: one new column per tick, scrolling left once the image is full.
         let w = Self.historyWidth, h = post.count
@@ -553,7 +549,7 @@ final class Engine: ObservableObject {
         historyColumn += 1
         let data = Data(heat) as CFData
         if let provider = CGDataProvider(data: data) {
-            spectrogram = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+            scope.spectrogram = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
                                   bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
         }
     }
@@ -948,8 +944,8 @@ final class Engine: ObservableObject {
         guard auditioning != nil else { return }
         player.stop()
         auditioning = nil
-        auditionProgress = 0
-        if !monitoring { spectrumPost = []; spectrumRaw = []; spectrogram = nil; historyColumn = 0 }
+        meters.auditionProgress = 0
+        if !monitoring { scope.clear(); historyColumn = 0 }
     }
 
     var recordingsURL: URL { var s = Settings(); s.recordingsFolder = recordingsFolder; return s.recordingsURL }

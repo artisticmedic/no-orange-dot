@@ -428,7 +428,7 @@ struct EditorView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12).padding(.top, 12)
-            LevelMeter(level: engine.running ? engine.level : 0).frame(height: 5).opacity(engine.running ? 1 : 0.4)
+            Live(engine.meters) { m in LevelMeter(level: engine.running ? m.level : 0) }.frame(height: 5).opacity(engine.running ? 1 : 0.4)
                 .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 10)
             Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
             micMenu
@@ -710,8 +710,10 @@ struct DynamicsView: View {
                 Toggle("Noise gate", isOn: $engine.dynamics.gateOn).labelsHidden().toggleStyle(.switch)
             }
             if engine.dynamics.gateOn {
-                ThresholdMeter(level: engine.running ? engine.level : 0, thresholdDB: engine.dynamics.gateThresholdDB,
-                               note: engine.running ? (Self.db(engine.level) >= engine.dynamics.gateThresholdDB ? "Open" : "Closed") : "Mic closed")
+                Live(engine.meters) { m in
+                ThresholdMeter(level: engine.running ? m.level : 0, thresholdDB: engine.dynamics.gateThresholdDB,
+                               note: engine.running ? (Self.db(m.level) >= engine.dynamics.gateThresholdDB ? "Open" : "Closed") : "Mic closed")
+                }
                 SliderRow(label: "Opens at", value: String(format: "%.0f dB", engine.dynamics.gateThresholdDB), binding: $engine.dynamics.gateThresholdDB, range: -80 ... -20)
                 SliderRow(label: "Cut by", value: String(format: "%.0f dB", -engine.dynamics.gateRangeDB),
                           binding: Binding(get: { -engine.dynamics.gateRangeDB }, set: { engine.dynamics.gateRangeDB = -$0 }), range: 6...60)
@@ -719,13 +721,17 @@ struct DynamicsView: View {
                 SliderRow(label: "Release", value: String(format: "%.0f ms", engine.dynamics.gateReleaseMs), binding: $engine.dynamics.gateReleaseMs, range: 20...800).padding(.bottom, 6)
             }
             RowDivider()
+            Live(engine.meters) { m in
             Row(title: "Compressor", caption: engine.dynamics.compOn && engine.running
-                ? String(format: "Turning the loud parts down %.1f dB.", engine.reductionDB) : "Evens out loud and quiet speech.") {
+                ? String(format: "Turning the loud parts down %.1f dB.", m.reductionDB) : "Evens out loud and quiet speech.") {
                 Toggle("Compressor", isOn: $engine.dynamics.compOn).labelsHidden().toggleStyle(.switch)
             }
+            }
             if engine.dynamics.compOn {
-                ThresholdMeter(level: engine.running ? engine.level : 0, thresholdDB: engine.dynamics.compThresholdDB,
-                               note: engine.running ? String(format: "−%.1f dB", engine.reductionDB) : "Mic closed")
+                Live(engine.meters) { m in
+                ThresholdMeter(level: engine.running ? m.level : 0, thresholdDB: engine.dynamics.compThresholdDB,
+                               note: engine.running ? String(format: "−%.1f dB", m.reductionDB) : "Mic closed")
+                }
                 HStack(spacing: 8) {
                     Text("Start from").font(.system(size: 13)).foregroundStyle(.secondary)
                     ForEach(Self.compPresets, id: \.name) { p in
@@ -741,9 +747,11 @@ struct DynamicsView: View {
                 SliderRow(label: "Makeup", value: String(format: "%+.1f dB", engine.dynamics.compMakeupDB), binding: $engine.dynamics.compMakeupDB, range: 0...18).padding(.bottom, 6)
             }
             RowDivider()
-            Row(title: "Limiter", caption: engine.dynamics.limiterOn && engine.running && engine.limiterDB > 0.1
-                ? String(format: "Pulled a peak down %.1f dB.", engine.limiterDB) : "Catches loud peaks before they clip.") {
+            Live(engine.meters) { m in
+            Row(title: "Limiter", caption: engine.dynamics.limiterOn && engine.running && m.limiterDB > 0.1
+                ? String(format: "Pulled a peak down %.1f dB.", m.limiterDB) : "Catches loud peaks before they clip.") {
                 Toggle("Limiter", isOn: $engine.dynamics.limiterOn).labelsHidden().toggleStyle(.switch)
+            }
             }
             if engine.dynamics.limiterOn {
                 SliderRow(label: "Ceiling", value: String(format: "%.1f dB", engine.dynamics.limiterCeilingDB), binding: $engine.dynamics.limiterCeilingDB, range: -12...0).padding(.bottom, 6)
@@ -771,8 +779,8 @@ enum Render {
             let start = min(audio.samples.count - 4096, Int(audio.sampleRate) * 4)
             audio.samples.withUnsafeBufferPointer { fft.power($0.baseAddress! + start, into: &power) }
             let levels = Spectrum.bands(power: power, sampleRate: audio.sampleRate, centres: Engine.displayCentres, fraction: 12).map(Float.init)
-            engine.spectrumRaw = levels
-            engine.spectrumPost = levels.enumerated().map { $1 + Float(engine.responseDB(at: Engine.displayCentres[$0])) }
+            engine.scope.spectrumRaw = levels
+            engine.scope.spectrumPost = levels.enumerated().map { $1 + Float(engine.responseDB(at: Engine.displayCentres[$0])) }
         }
         for dark in [false, true] {
             let scheme: ColorScheme = dark ? .dark : .light
@@ -780,7 +788,7 @@ enum Render {
                 ("panel", AnyView(MenuPanelContent(model: PanelModel()).environmentObject(engine))),
                 ("editor-sound", AnyView(EditorView(tab: .sound).environmentObject(engine))),
                 ("editor-recordings", AnyView(EditorView(tab: .recordings).environmentObject(engine))),
-                ("editor-playing", AnyView(EditorView(tab: .recordings).environmentObject(engine).onAppear { engine.auditioning = engine.recordings.first?.url; engine.auditionProgress = 0.4 })),
+                ("editor-playing", AnyView(EditorView(tab: .recordings).environmentObject(engine).onAppear { engine.auditioning = engine.recordings.first?.url; engine.meters.auditionProgress = 0.4 })),
                 ("editor-settings", AnyView(EditorView(tab: .settings).environmentObject(engine))),
             ]
             for (name, view) in views {

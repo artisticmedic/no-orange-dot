@@ -164,7 +164,7 @@ struct AuditionBar: View {
                             Text("Playing \(url.deletingPathExtension().lastPathComponent)").font(.system(size: 14, weight: .medium)).lineLimit(1)
                             Text("On repeat, through your current settings.").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
                         }
-                        ProgressView(value: engine.auditionProgress).controlSize(.small)
+                        Live(engine.meters) { m in ProgressView(value: m.auditionProgress).controlSize(.small) }
                     }
                     Toggle("Loop", isOn: $engine.auditionLoop).toggleStyle(.switch)
                     Toggle("EQ", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).toggleStyle(.switch)

@@ -104,10 +104,12 @@ struct FitChart: View {
 /// A scrolling picture of the voice: time runs left to right, pitch bottom to top, brightness is loudness.
 struct SpectrogramView: View {
     @EnvironmentObject var engine: Engine
-    var body: some View {
+    var body: some View { Live(engine.scope) { picture($0) } }
+
+    private func picture(_ meters: Scope) -> some View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(red: 0.05, green: 0.05, blue: 0.09))
-            if let image = engine.spectrogram {
+            if let image = meters.spectrogram {
                 GeometryReader { g in
                     Image(decorative: image, scale: 1).resizable().interpolation(.medium)
                         .frame(width: g.size.width * CGFloat(image.width) / 180, height: g.size.height)

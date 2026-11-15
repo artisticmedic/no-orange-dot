@@ -127,7 +127,7 @@ struct EQView: View {
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Surface.plot)
                 RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Surface.border, lineWidth: 1)
-                Canvas { ctx, size in
+                Live(engine.scope) { m in Canvas { ctx, size in
                     for f in [50.0, 100, 200, 500, 1000, 2000, 5000, 10000] {
                         var p = Path(); p.move(to: CGPoint(x: x(f, w), y: 0)); p.addLine(to: CGPoint(x: x(f, w), y: h))
                         ctx.stroke(p, with: .color(.primary.opacity(0.08)), lineWidth: 1)
@@ -148,8 +148,8 @@ struct EQView: View {
                         }
                         return p
                     }
-                    if engine.spectrumPost.count == Engine.displayCentres.count, engine.spectrumRaw.count == engine.spectrumPost.count {
-                        var fill = voice(engine.spectrumPost)
+                    if m.spectrumPost.count == Engine.displayCentres.count, m.spectrumRaw.count == m.spectrumPost.count {
+                        var fill = voice(m.spectrumPost)
                         fill.addLine(to: CGPoint(x: x(Engine.displayCentres.last!, w), y: h)); fill.addLine(to: CGPoint(x: x(Engine.displayCentres[0], w), y: h)); fill.closeSubpath()
                         ctx.fill(fill, with: .color(.primary.opacity(0.10)))
                         // The difference: shade between the raw mic and the result, by whether the EQ adds or takes away.
@@ -158,17 +158,17 @@ struct EQView: View {
                             return CGPoint(x: x(Engine.displayCentres[i], w), y: h - t * h)
                         }
                         var added = Path(), removed = Path()
-                        for i in 0..<(engine.spectrumPost.count - 1) {
-                            let d = (engine.spectrumPost[i] - engine.spectrumRaw[i] + engine.spectrumPost[i + 1] - engine.spectrumRaw[i + 1]) / 2
+                        for i in 0..<(m.spectrumPost.count - 1) {
+                            let d = (m.spectrumPost[i] - m.spectrumRaw[i] + m.spectrumPost[i + 1] - m.spectrumRaw[i + 1]) / 2
                             guard abs(d) > 0.3 else { continue }
                             var q = Path()
-                            q.move(to: point(i, engine.spectrumRaw[i])); q.addLine(to: point(i + 1, engine.spectrumRaw[i + 1]))
-                            q.addLine(to: point(i + 1, engine.spectrumPost[i + 1])); q.addLine(to: point(i, engine.spectrumPost[i])); q.closeSubpath()
+                            q.move(to: point(i, m.spectrumRaw[i])); q.addLine(to: point(i + 1, m.spectrumRaw[i + 1]))
+                            q.addLine(to: point(i + 1, m.spectrumPost[i + 1])); q.addLine(to: point(i, m.spectrumPost[i])); q.closeSubpath()
                             if d > 0 { added.addPath(q) } else { removed.addPath(q) }
                         }
                         ctx.fill(added, with: .color(.accentColor.opacity(0.45)))
                         ctx.fill(removed, with: .color(.orange.opacity(0.45)))
-                        ctx.stroke(voice(engine.spectrumRaw), with: .color(.primary.opacity(0.30)), lineWidth: 1)
+                        ctx.stroke(voice(m.spectrumRaw), with: .color(.primary.opacity(0.30)), lineWidth: 1)
                     }
                     var curve = Path()
                     let steps = Int(size.width / 2)
@@ -178,7 +178,7 @@ struct EQView: View {
                         if i == 0 { curve.move(to: pt) } else { curve.addLine(to: pt) }
                     }
                     ctx.stroke(curve, with: .color(.accentColor), lineWidth: 2)
-                }
+                } }
                 ForEach(engine.bands) { band in
                     let isSel = band.id == selected
                     Circle()
