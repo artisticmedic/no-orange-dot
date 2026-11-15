@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var item: NSStatusItem!
     private var panel: MenuPanelController!
     private var editor: NSWindow?
+    private var menus: MainMenu!
     private var watch: AnyCancellable?
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -53,7 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if verb == "open-editor" { self?.openEditor() } else { self?.engine.handle(command: verb) }
             }
         }
-        NSApp.mainMenu = Self.mainMenu()
+        menus = MainMenu(engine: engine) { [weak self] in self?.openEditor() }
+        menus.install()
         applyAppIcon()
         applyDockPolicy()
         applyShortcuts()
@@ -170,37 +172,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func applyDockPolicy() {
         let want: NSApplication.ActivationPolicy = engine.showInDock || editor?.isVisible == true ? .regular : .accessory
         if NSApp.activationPolicy() != want { NSApp.setActivationPolicy(want) }
-    }
-
-    private static func mainMenu() -> NSMenu {
-        let main = NSMenu()
-        func add(_ title: String, _ items: [NSMenuItem]) {
-            let item = NSMenuItem(), menu = NSMenu(title: title)
-            items.forEach(menu.addItem)
-            item.submenu = menu
-            main.addItem(item)
-        }
-        add(Brand.short, [
-            NSMenuItem(title: "About \(Brand.short)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""),
-            .separator(),
-            NSMenuItem(title: "Hide \(Brand.short)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"),
-            .separator(),
-            NSMenuItem(title: "Quit \(Brand.short)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"),
-        ])
-        add("Edit", [
-            NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"),
-            NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"),
-            .separator(),
-            NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
-            NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
-            NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
-            NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
-        ])
-        add("Window", [
-            NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),
-            NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
-        ])
-        return main
     }
 
     /// The live views open the mic, so closing the editor always lets it close again.
@@ -381,6 +352,9 @@ struct EditorView: View {
         }
         .frame(minWidth: 860, minHeight: 560)
         .ignoresSafeArea()
+        .onReceive(NotificationCenter.default.publisher(for: .showTab)) { note in
+            if let name = note.object as? String, let wanted = EditorTab(rawValue: name) { tab = wanted }
+        }
     }
 
     // MARK: Sidebar
