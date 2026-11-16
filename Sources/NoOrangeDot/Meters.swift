@@ -4,6 +4,8 @@ import SwiftUI
 /// redraws only the meter and not every view that reads the engine.
 final class Meters: ObservableObject {
     @Published var level: Float = 0
+    @Published var voice = VoiceLevel.Reading(averageDB: -100, peakDB: -100)
+    @Published var playbackVoice = VoiceLevel.Reading(averageDB: -100, peakDB: -100)
     @Published var reductionDB: Float = 0
     @Published var limiterDB: Float = 0
     @Published var auditionProgress = 0.0

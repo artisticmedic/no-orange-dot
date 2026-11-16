@@ -177,8 +177,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// The live views open the mic, so closing the editor always lets it close again.
     func windowWillClose(_ notification: Notification) {
         engine.cancelMeasure()
-        engine.stopAudition()
+        engine.stopPlaying()
         engine.monitoring = false
+        engine.checkingVoice = false
+        ReferenceVoice.shared.stop()
         DispatchQueue.main.async { [weak self] in self?.applyDockPolicy() }
     }
 
@@ -508,6 +510,7 @@ struct EditorView: View {
                 AuditionBar()
                 switch tab {
                 case .sound:
+                    VStack(spacing: 8) { SectionLabel(text: "Voice level"); VoiceCheckCard() }
                     VStack(spacing: 8) { SectionLabel(text: "Tone"); EQView(graphHeight: 280) }
                     VStack(spacing: 8) { SectionLabel(text: "Dynamics"); DynamicsView() }
                 case .recordings:

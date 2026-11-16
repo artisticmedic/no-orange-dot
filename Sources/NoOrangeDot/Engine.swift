@@ -13,6 +13,8 @@ final class Engine: ObservableObject {
     @Published var running = false
     @Published var recording = false
     let meters = Meters()
+    var voiceLevel = VoiceLevel()
+    @Published var checkingVoice = false { didSet { evaluate() } }
     let scope = Scope()
     @Published var muteShortcut = "" { didSet { if muteShortcut != oldValue { changed() } } }
     @Published var recordShortcut = "" { didSet { if recordShortcut != oldValue { changed() } } }
@@ -26,7 +28,13 @@ final class Engine: ObservableObject {
     @Published var stereoInput = false
     @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
 
-    @Published var muted: Bool { didSet { mutedFlag = muted; evaluate(); changed() } }
+    @Published var muted: Bool {
+        didSet {
+            mutedFlag = muted
+            if muted { checkingVoice = false }
+            evaluate(); changed()
+        }
+    }
     @Published var inputUID: String {
         didSet {
             guard inputUID != oldValue else { return }
@@ -404,7 +412,7 @@ final class Engine: ObservableObject {
 
     func evaluate() {
         guard !shuttingDown else { return }
-        let want = (clientsActive && !muted) || (recording && !recordingPaused) || monitoring || listenBack
+        let want = (clientsActive && !muted) || (recording && !recordingPaused) || monitoring || listenBack || checkingVoice
         if want && !running { start() } else if !want && running { stop() }
     }
 
@@ -420,6 +428,8 @@ final class Engine: ObservableObject {
         guard running, let p = ioProc else { return }
         AudioDeviceStop(aggregate, p)
         running = false
+        voiceLevel.reset()
+        meters.voice = voiceLevel.reading
         meters.level = 0
         meters.reductionDB = 0
     }
@@ -451,6 +461,7 @@ final class Engine: ObservableObject {
         }
 
         dsp.process(left, right, frames: frames, stereo: stereo)
+        voiceLevel.consume(left, right, frames: frames, stereo: stereo, sampleRate: sampleRate)
 
         for n in 0..<frames { postRing[(at + n) & mask] = left[n] }
         ringIndex = (at + frames) & mask
@@ -504,11 +515,13 @@ final class Engine: ObservableObject {
         }
         if auditioning != nil {
             if player.finished { stopAudition() } else {
+                meters.playbackVoice = player.voiceLevel.reading
                 meters.auditionProgress = player.progress
                 analyze(raw: player.rawRing, post: player.postRing, end: player.ringIndex, rate: player.sampleRate)
             }
         }
         guard running else { return }
+        meters.voice = voiceLevel.reading
         meters.level = peak; peak = 0
         meters.reductionDB = dsp.reductionMeter; dsp.reductionMeter = 0
         meters.limiterDB = dsp.limiterMeter; dsp.limiterMeter = 0

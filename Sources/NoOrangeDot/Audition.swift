@@ -16,6 +16,7 @@ final class AuditionPlayer {
     private(set) var finished = false
     var loop = true
     var level: Float = 0
+    var voiceLevel = VoiceLevel()
 
     private var left: UnsafeMutablePointer<Float>?
     private var right: UnsafeMutablePointer<Float>?
@@ -63,6 +64,7 @@ final class AuditionPlayer {
         left?.deallocate(); right?.deallocate()
         left = nil; right = nil
         count = 0; position = 0; level = 0
+        voiceLevel.reset()
     }
 
     private func render(_ frames: Int, _ out: UnsafeMutableAudioBufferListPointer) {
@@ -81,6 +83,7 @@ final class AuditionPlayer {
         let mask = Self.ringSize - 1, at = ringIndex
         for i in 0..<n { rawRing[(at + i) & mask] = workL[i] }
         chain.process(workL, workR, frames: n, stereo: stereo)
+        voiceLevel.consume(workL, workR, frames: n, stereo: stereo, sampleRate: sampleRate)
         var peak = level
         for i in 0..<n { postRing[(at + i) & mask] = workL[i]; let v = abs(workL[i]); if v > peak { peak = v } }
         level = peak

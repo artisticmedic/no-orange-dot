@@ -1,12 +1,12 @@
 # No Orange Dot release checklist
 
-Status: 16 November 2026. Source version 0.1.2; public installer/feed still 0.1.1. The priority feature passed 56 automated tests and light/dark visual checks, and was installed locally with the existing mic order and Wave XLR gain preserved. Those checks do not replace hardware and upgrade testing.
+Status: 16 November 2026. Source version 0.1.2; public installer/feed still 0.1.1. The priority feature and voice check passed 76 automated tests (one existing installer test skipped). The voice check has light/dark previews and a synthesis-only reference verification: 6.57 seconds, −20 dBFS active average, −6.73 dBFS peak. Audible A/B and hardware behavior still need hands-on checks. Those checks do not replace hardware and upgrade testing.
 
 ## Fix before publishing an installer
 
-- [ ] Finalize recordings before Quit completes, including files already waiting for delayed disposal. `EngineRecording.stopRecording` currently defers closing them by 200 ms; an isolated API probe reopened such a file with zero frames.
-- [ ] Prevent a pending GUI settings save from replacing newer CLI/hand edits. Recheck the disk revision and invalid-config state when saving, not only when queueing the save.
-- [ ] Triage the remaining confirmed review findings: zero-hold gate attenuation, recording filename collisions/write errors, listen-back rate changes, undo/history behavior, shortcut capture/registration, invalid CLI bounds, and failed-save reporting.
+- [x] Finalize the active take before Quit and wait for previously queued recording closes. Claude verified quitting mid-take; stop-then-immediate-quit with an active client still needs the live check below.
+- [x] Check exact file revisions when saving, preserve newer disk edits and malformed files, serialize app/CLI writes, and report read/write failures. Eleven persistence/CLI regressions pass. Hand editors do not participate in the app/CLI lock.
+- [ ] Triage the remaining confirmed review findings: zero-hold gate attenuation, recording write errors, listen-back rate changes, undo/history behavior, shortcut capture/registration, and invalid CLI bounds.
 - [ ] Make driver builds fail when xcodebuild fails. The current `build-driver.sh` pipeline can continue and package a stale driver.
 
 ## Hands-on checks
@@ -18,7 +18,8 @@ Use the single app in /Applications. Keep the person's current audio settings ba
 - [ ] Manual input choice stays separate from priority. A preferred mic reconnecting resumes automatic priority; absent preferred mics retain the current connected fallback.
 - [ ] Audio: gate/compressor/limiter, headphones, changing 44.1/48/96 kHz inputs, sleep/wake, and an app continuing to use the virtual mic through a device switch.
 - [ ] Mute: check call output, recording, and monitoring separately. State the intended behavior in the UI/help; do not assume all three paths are identical.
-- [ ] Record: repeated short takes, stop/quit, playback and raw comparison, folder failures, and deletion/recovery.
+- [ ] Record: repeated short takes, stop-then-immediate-quit while a client keeps the engine running, pause/resume, playback and raw comparison, folder failures, and deletion/recovery.
+- [ ] Voice check: play the reference and a real take at the same system volume; test quiet/loud speech, mute/close stopping the live check, recording selection during playback, and a Mac without the reference voice installed. The guide uses average signal level in dBFS, not LUFS or calibrated room loudness.
 - [ ] Keyboard/accessibility: actual custom shortcuts, global mute/record, standard text shortcuts, switching between shortcut recorders, VoiceOver, and a non-US keyboard layout.
 - [ ] Clean install and 0.1.1 → 0.1.2 upgrade in a guest, preserving settings and driver availability. Test cancelled/failed installation and the updater retry path.
 

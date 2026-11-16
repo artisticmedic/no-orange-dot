@@ -45,21 +45,45 @@ final class Playback: NSObject, ObservableObject, AVAudioPlayerDelegate {
     static let shared = Playback()
     @Published var playing: URL?
     private var player: AVAudioPlayer?
+    @Published var voice = VoiceLevel.Reading(averageDB: -100, peakDB: -100)
+    private var meterTimer: Timer?
 
     func toggle(_ url: URL) {
         if playing == url { stop(); return }
         stop()
+        ReferenceVoice.shared.stop()
         guard let p = try? AVAudioPlayer(contentsOf: url) else { return }
+        p.isMeteringEnabled = true
         p.delegate = self
         player = p
         playing = url
         p.play()
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateMeter() }
+        }
     }
 
-    func stop() { player?.stop(); player = nil; playing = nil }
+    func stop() {
+        meterTimer?.invalidate(); meterTimer = nil
+        player?.stop(); player = nil; playing = nil
+        voice = VoiceLevel.Reading(averageDB: -100, peakDB: -100)
+    }
+
+    private func updateMeter() {
+        guard let player else { return }
+        player.updateMeters()
+        var power = 0.0, peak = -100.0
+        for channel in 0..<player.numberOfChannels {
+            power += pow(10, Double(player.averagePower(forChannel: channel)) / 10)
+            peak = max(peak, Double(player.peakPower(forChannel: channel)))
+        }
+        voice = VoiceLevel.Reading(averageDB: 10 * log10(max(power / Double(player.numberOfChannels), 1e-10)), peakDB: peak)
+    }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor in self.playing = nil }
+        Task { @MainActor in
+            if self.player === player { self.stop() }
+        }
     }
 }
 
