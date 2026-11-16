@@ -94,6 +94,12 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try nod("shortcut", "mute", "off").code, 0)
         XCTAssertEqual(try settings()["muteShortcut"] as? String, "")
         XCTAssertEqual(try nod("shortcut", "mute", "k").code, 1)
+        XCTAssertEqual(try nod("shortcut", "gate", "ctrl+opt+g").code, 0)
+        XCTAssertEqual((try settings()["shortcuts"] as? [String: String])?["gate"], "ctrl+opt+g")
+        XCTAssertEqual(try nod("shortcut", "gate", "off").code, 0)
+        XCTAssertEqual((try settings()["shortcuts"] as? [String: String])?["gate"], nil)
+        XCTAssertEqual(try nod("shortcut", "nonsense", "ctrl+opt+g").code, 1)
+        XCTAssertEqual(try nod("shortcut", "list").code, 0)
     }
 
     func testABrokenSettingsFileIsLeftAlone() throws {

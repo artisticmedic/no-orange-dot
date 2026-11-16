@@ -26,7 +26,7 @@ The orange dot still appears while an app is using the mic. It goes away when th
 - Record to a WAV file in `~/Music/No Orange Dot/`
 - Presets: save whole sounds in a list, loop one recording, and click or press ⌘1 to ⌘9 to hear each on the same words
 - Listen back: hear the processed mic in your headphones
-- System-wide keyboard shortcuts for mute and record
+- Keyboard shortcuts you choose: none are built in. Mute and record can work in any app, and every menu command can have one
 - The microphone's own preamp gain, with a lock that stops other apps changing it, on hardware that allows it
 - A separate saved sound for each microphone
 - A live view of your voice behind the EQ curve, shaded where the EQ adds and takes away

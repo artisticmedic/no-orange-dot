@@ -25,7 +25,8 @@ enum CLI {
       nod comp on|off [threshold=-18] [ratio=3] [attack=8] [release=150] [makeup=0]
       nod limiter on|off [ceiling=-1]    catch peaks before they clip
       nod record start|stop|toggle
-      nod shortcut mute|record <keys>|off   system-wide shortcut, e.g. ctrl+opt+cmd+m
+      nod shortcut list                     every command that can have a shortcut; none are set to begin with
+      nod shortcut <command> <keys>|off     e.g. nod shortcut mute ctrl+opt+cmd+m
       nod crashes                        crash reports macOS has written for this app; nothing is ever sent
       nod crashes show <n>               the short summary that would go into a GitHub issue
       nod update                         look for a new version
@@ -222,11 +223,24 @@ enum CLI {
             guard let a = rest.first, a == "on" || a == "off" else { return fail("Use: nod system on|off") }
             Command.send("system-\(a)"); return settle()
         case "shortcut":
-            guard rest.count == 2, rest[0] == "mute" || rest[0] == "record" else { return fail("Use: nod shortcut mute|record <keys>|off, for example ctrl+opt+cmd+m") }
+            if rest.isEmpty || rest == ["list"] {
+                var s = Settings()
+                if case .ok(let saved) = Settings.load() { s = saved }
+                for c in MenuCommand.all {
+                    let keys = c.id == MenuCommand.mute ? s.muteShortcut : c.id == MenuCommand.record ? s.recordShortcut : s.shortcuts[c.id] ?? ""
+                    print("\(c.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \((keys.isEmpty ? "-" : keys).padding(toLength: 18, withPad: " ", startingAt: 0)) \(c.menu): \(c.title)\(c.global ? " (any app)" : "")")
+                }
+                return 0
+            }
+            guard rest.count == 2, let command = MenuCommand.named(rest[0]) else { return fail("Use: nod shortcut <command> <keys>|off, for example nod shortcut mute ctrl+opt+cmd+m. nod shortcut list names the commands.") }
             let value = rest[1] == "off" ? "" : rest[1]
             if !value.isEmpty, Shortcut(value) == nil { return fail("Can't read \"\(value)\". Use a key with ctrl, opt or cmd, for example ctrl+opt+cmd+m, or a function key such as f13.") }
             let text = Shortcut(value)?.text ?? ""
-            return done(edit { if rest[0] == "mute" { $0.muteShortcut = text } else { $0.recordShortcut = text } })
+            return done(edit {
+                if command.id == MenuCommand.mute { $0.muteShortcut = text }
+                else if command.id == MenuCommand.record { $0.recordShortcut = text }
+                else { $0.shortcuts[command.id] = text.isEmpty ? nil : text }
+            })
         case "listen":
             guard let a = rest.first, a == "on" || a == "off" else { return fail("Use: nod listen on|off") }
             Command.send("listen-\(a)"); return settle()

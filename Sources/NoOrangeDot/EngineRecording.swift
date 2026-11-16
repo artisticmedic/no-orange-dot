@@ -86,6 +86,12 @@ extension Engine {
 
     var recordingsURL: URL { var s = Settings(); s.recordingsFolder = recordingsFolder; return s.recordingsURL }
 
+    /// Reads the folder now, for a command that needs the list before it can act.
+    @discardableResult func loadRecordings() -> [Recording] {
+        recordings = Recording.list(in: recordingsURL)
+        return recordings
+    }
+
     func refreshRecordings() {
         let folder = recordingsURL
         DispatchQueue.global(qos: .userInitiated).async {

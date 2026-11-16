@@ -16,6 +16,10 @@ final class Engine: ObservableObject {
     let scope = Scope()
     @Published var muteShortcut = "" { didSet { if muteShortcut != oldValue { changed() } } }
     @Published var recordShortcut = "" { didSet { if recordShortcut != oldValue { changed() } } }
+    /// Shortcuts the user gave to menu commands, by command ID. They work while this app is in front.
+    @Published var shortcuts: [String: String] = [:] { didSet { if shortcuts != oldValue { changed() } } }
+    /// The EQ band being edited.
+    @Published var selectedBand: UUID?
     @Published var lastWakeMs: Double?
     @Published var error: String?
     @Published var inputs: [HAL.Input] = []
@@ -162,6 +166,7 @@ final class Engine: ObservableObject {
         recordingsFolder = s.recordingsFolder
         muteShortcut = s.muteShortcut
         recordShortcut = s.recordShortcut
+        shortcuts = s.shortcuts
         micName = s.micName
         mutedFlag = muted
         left.initialize(repeating: 0, count: Self.maxFrames)

@@ -2,12 +2,11 @@ import SwiftUI
 
 struct EQView: View {
     @EnvironmentObject var engine: Engine
-    @State private var selected: UUID?
     var graphHeight: CGFloat = 150
 
     private let fMin = 20.0, fMax = 20000.0, dbRange = 18.0
 
-    @AppStorage("heatMap") private var heatMap = true
+    @AppStorage(Engine.heatMapKey) private var heatMap = true
     @State private var showEmptyHistory = false
     private var live: Bool { engine.monitoring || engine.auditioning != nil }
 
@@ -18,7 +17,7 @@ struct EQView: View {
     private var curveCard: some View {
         Card {
             Row(title: "Equalizer", caption: readout ?? "Drag a dot to adjust a band.") {
-                IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { if let last = engine.history.first { engine.restore(last); selected = nil } }
+                IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { if let last = engine.history.first { engine.restore(last) } }
                     .disabled(engine.history.isEmpty).opacity(engine.history.isEmpty ? 0.35 : 1)
                 if engine.history.isEmpty {
                     IconButton(symbol: "clock.arrow.circlepath", label: "Earlier curves") { showEmptyHistory = true }
@@ -34,7 +33,7 @@ struct EQView: View {
                 } else {
                 Menu {
                     ForEach(engine.history) { s in
-                        Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s); selected = nil }
+                        Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s) }
                     }
                     Divider()
                     Button("Clear History") { engine.clearHistory() }
@@ -45,7 +44,7 @@ struct EQView: View {
                 Toggle("Equalizer", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).labelsHidden().toggleStyle(.switch)
             }
             graph.frame(height: graphHeight).padding(.horizontal, 10).padding(.bottom, 10).opacity(engine.bypass ? 0.45 : 1)
-            if let i = engine.bands.firstIndex(where: { $0.id == selected }) {
+            if let i = engine.bands.firstIndex(where: { $0.id == engine.selectedBand }) {
                 RowDivider()
                 bandEditor(i)
             }
@@ -57,8 +56,8 @@ struct EQView: View {
             Row(title: "Curve", caption: nil) {
                 HStack(spacing: 8) {
                     Menu {
-                        Button("Warm voice") { engine.bands = Presets.warm; selected = nil }
-                        Button("Flat") { engine.bands = Presets.flat; selected = nil }
+                        Button("Warm voice") { engine.bands = Presets.warm }
+                        Button("Flat") { engine.bands = Presets.flat }
                     } label: {
                         HStack(spacing: 8) {
                             Text(presetName)
@@ -75,7 +74,7 @@ struct EQView: View {
 
     /// "Bell · 480 Hz · −3.0 dB · Q 0.50" for the band being dragged or edited.
     private var readout: String? {
-        guard let b = engine.bands.first(where: { $0.id == selected }) else { return nil }
+        guard let b = engine.bands.first(where: { $0.id == engine.selectedBand }) else { return nil }
         let f = b.freq >= 1000 ? String(format: "%.2f kHz", b.freq / 1000) : String(format: "%.0f Hz", b.freq)
         return [b.type.label, f, b.type.hasGain ? String(format: "%+.1f dB", b.gainDB) : nil, String(format: "Q %.2f", b.q)].compactMap { $0 }.joined(separator: "  ·  ")
     }
@@ -180,7 +179,7 @@ struct EQView: View {
                     ctx.stroke(curve, with: .color(.accentColor), lineWidth: 2)
                 } }
                 ForEach(engine.bands) { band in
-                    let isSel = band.id == selected
+                    let isSel = band.id == engine.selectedBand
                     Circle()
                         .fill(band.on ? Color.accentColor : Color.secondary)
                         .overlay(Circle().stroke(.white, lineWidth: isSel ? 2 : 1))
@@ -189,7 +188,7 @@ struct EQView: View {
                         .contentShape(Circle().inset(by: -10))
                         .position(x: x(band.freq, w), y: y(band.type.hasGain ? band.gainDB : 0, h))
                         .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("eq")).onChanged { v in
-                            selected = band.id
+                            if engine.selectedBand != band.id { engine.selectedBand = band.id }
                             guard let i = engine.bands.firstIndex(where: { $0.id == band.id }) else { return }
                             var b = engine.bands[i]
                             b.freq = freq(v.location.x, w)
@@ -204,14 +203,17 @@ struct EQView: View {
     }
 
     private func bandEditor(_ i: Int) -> some View {
-        let b = Binding(get: { engine.bands[i] }, set: { engine.bands[i] = $0 })
+        // Looked up by ID, not position: the band can be removed while a control still holds this binding.
+        let shown = engine.bands[i]
+        let b = Binding(get: { engine.bands.first { $0.id == shown.id } ?? shown },
+                        set: { new in if let j = engine.bands.firstIndex(where: { $0.id == shown.id }) { engine.bands[j] = new } })
         let f = b.wrappedValue.freq
         return VStack(spacing: 0) {
             Row(title: "Selected band") {
                 HStack(spacing: 10) {
                     Picker("Band type", selection: b.type) { ForEach(BandType.allCases) { Text($0.label).tag($0) } }.labelsHidden().fixedSize()
                     Toggle("Band on", isOn: b.on).labelsHidden().toggleStyle(.switch)
-                    IconButton(symbol: "trash", label: "Remove this band") { let id = engine.bands[i].id; selected = nil; engine.bands.removeAll { $0.id == id } }
+                    IconButton(symbol: "trash", label: "Remove this band") { engine.removeSelectedBand() }
                 }
             }
             SliderRow(label: "Frequency", value: String(format: f >= 1000 ? "%.2f kHz" : "%.0f Hz", f >= 1000 ? f / 1000 : f),
@@ -225,7 +227,6 @@ struct EQView: View {
     }
 
     private func addBand() {
-        let b = Band(type: .bell, freq: 1000, gainDB: 0, q: 1)
-        engine.bands.append(b); selected = b.id
+        engine.addBand()
     }
 }

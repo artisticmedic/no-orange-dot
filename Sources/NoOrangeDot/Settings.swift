@@ -98,9 +98,11 @@ struct Settings: Codable, Equatable {
     var appIcon = "paint"
     /// Keep a Dock icon while the window is closed. Off means the app lives in the menu bar only.
     var showInDock = false
-    /// System-wide shortcuts, written like "ctrl+opt+cmd+m". Empty means none.
-    var muteShortcut = "ctrl+opt+cmd+m"
-    var recordShortcut = "ctrl+opt+cmd+r"
+    /// System-wide shortcuts, written like "ctrl+opt+cmd+m". Empty means none. The app ships with none set.
+    var muteShortcut = ""
+    var recordShortcut = ""
+    /// Shortcuts for menu commands, by command ID. They work while the app is in front.
+    var shortcuts: [String: String] = [:]
     /// Look for a new version once a day.
     var autoUpdate = true
     /// Where to look for it. Empty means the built-in address.
@@ -129,8 +131,9 @@ struct Settings: Codable, Equatable {
         icon = try c.decodeIfPresent(String.self, forKey: .icon) ?? "eclipse"
         appIcon = try c.decodeIfPresent(String.self, forKey: .appIcon) ?? "paint"
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? false
-        muteShortcut = try c.decodeIfPresent(String.self, forKey: .muteShortcut) ?? "ctrl+opt+cmd+m"
-        recordShortcut = try c.decodeIfPresent(String.self, forKey: .recordShortcut) ?? "ctrl+opt+cmd+r"
+        muteShortcut = try c.decodeIfPresent(String.self, forKey: .muteShortcut) ?? ""
+        recordShortcut = try c.decodeIfPresent(String.self, forKey: .recordShortcut) ?? ""
+        shortcuts = try c.decodeIfPresent([String: String].self, forKey: .shortcuts) ?? [:]
         autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? true
         presets = try c.decodeIfPresent([SoundPreset].self, forKey: .presets) ?? []
         returnToUID = try c.decodeIfPresent(String.self, forKey: .returnToUID) ?? ""

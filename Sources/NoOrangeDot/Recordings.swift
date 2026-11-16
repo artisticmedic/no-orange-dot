@@ -41,6 +41,8 @@ struct Recording: Identifiable, Equatable {
 /// Plays one recording at a time through the Mac's output.
 @MainActor
 final class Playback: NSObject, ObservableObject, AVAudioPlayerDelegate {
+    /// The player for the recordings list, shared with the menus.
+    static let shared = Playback()
     @Published var playing: URL?
     private var player: AVAudioPlayer?
 
@@ -63,7 +65,7 @@ final class Playback: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
 struct RecordingsView: View {
     @EnvironmentObject var engine: Engine
-    @StateObject private var playback = Playback()
+    @ObservedObject private var playback = Playback.shared
 
     var body: some View {
         VStack(spacing: 18) {
@@ -73,7 +75,7 @@ struct RecordingsView: View {
                     Row(title: (engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath, caption: "New recordings go here.") {
                         HStack(spacing: 8) {
                             Button("Open") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
-                            Button("Change…") { choose() }.buttonStyle(PillButtonStyle())
+                            Button("Change…") { engine.chooseRecordingsFolder() }.buttonStyle(PillButtonStyle())
                         }
                     }
                 }
@@ -136,17 +138,6 @@ struct RecordingsView: View {
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { playback.stop(); engine.trash(engine.recordings) }
-    }
-
-    private func choose() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = engine.recordingsURL
-        panel.prompt = "Use This Folder"
-        panel.message = "New recordings are saved here, and the list shows what is in it."
-        if panel.runModal() == .OK, let url = panel.url { engine.recordingsFolder = url.path }
     }
 }
 

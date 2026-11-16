@@ -56,7 +56,6 @@ struct PresetsCard: View {
                 .padding(.leading, 14).padding(.vertical, 9).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .modifier(NumberShortcut(index: i))
             .accessibilityLabel("Use preset \(preset.name)").accessibilityAddTraits(isCurrent ? .isSelected : [])
             IconButton(symbol: "arrow.down.doc", label: "Replace \(preset.name) with the current sound") { engine.savePreset(named: preset.name) }
                 .disabled(isCurrent).opacity(isCurrent ? 0.35 : 1)
@@ -70,7 +69,7 @@ struct PresetsCard: View {
         if let playing {
             Row(title: "Comparing on \(Recording.friendly(playing.date))",
                 caption: engine.presets.isEmpty ? "Save two or more presets, then click one to switch."
-                    : "Click a preset\(engine.presets.count > 1 ? ", or press ⌘1 to ⌘\(min(engine.presets.count, 9))," : "") to switch.") {
+                    : "Click a preset to switch.") {
                 Button { engine.stopAudition() } label: { Label("Stop", systemImage: "stop.fill") }.buttonStyle(PillButtonStyle())
             }
         } else if takes.isEmpty {
@@ -91,13 +90,5 @@ struct PresetsCard: View {
     private func play(_ r: Recording) {
         engine.auditionLoop = true
         engine.startAudition(r)
-    }
-}
-
-/// ⌘1 to ⌘9 for the first nine presets.
-private struct NumberShortcut: ViewModifier {
-    let index: Int
-    func body(content: Content) -> some View {
-        if index < 9 { content.keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command) } else { content }
     }
 }

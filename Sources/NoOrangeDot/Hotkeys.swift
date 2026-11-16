@@ -15,6 +15,7 @@ struct Shortcut: Equatable {
         "v": kVK_ANSI_V, "w": kVK_ANSI_W, "x": kVK_ANSI_X, "y": kVK_ANSI_Y, "z": kVK_ANSI_Z,
         "0": kVK_ANSI_0, "1": kVK_ANSI_1, "2": kVK_ANSI_2, "3": kVK_ANSI_3, "4": kVK_ANSI_4, "5": kVK_ANSI_5, "6": kVK_ANSI_6,
         "7": kVK_ANSI_7, "8": kVK_ANSI_8, "9": kVK_ANSI_9, "space": kVK_Space,
+        "up": kVK_UpArrow, "down": kVK_DownArrow, "left": kVK_LeftArrow, "right": kVK_RightArrow,
         "f1": kVK_F1, "f2": kVK_F2, "f3": kVK_F3, "f4": kVK_F4, "f5": kVK_F5, "f6": kVK_F6, "f7": kVK_F7, "f8": kVK_F8,
         "f9": kVK_F9, "f10": kVK_F10, "f11": kVK_F11, "f12": kVK_F12, "f13": kVK_F13, "f14": kVK_F14, "f15": kVK_F15,
         "f16": kVK_F16, "f17": kVK_F17, "f18": kVK_F18, "f19": kVK_F19,
@@ -33,7 +34,7 @@ struct Shortcut: Equatable {
             }
         }
         guard let name, let code = Self.keys[name] else { return nil }
-        guard name.hasPrefix("f") && name.count > 1 || mods & UInt32(cmdKey | optionKey | controlKey) != 0 else { return nil }
+        guard Self.isFunctionKey(name) || mods & UInt32(cmdKey | optionKey | controlKey) != 0 else { return nil }
         keyCode = UInt32(code); modifiers = mods; key = name
     }
 
@@ -64,7 +65,32 @@ struct Shortcut: Equatable {
         if modifiers & UInt32(optionKey) != 0 { s += "⌥" }
         if modifiers & UInt32(shiftKey) != 0 { s += "⇧" }
         if modifiers & UInt32(cmdKey) != 0 { s += "⌘" }
-        return s + (key == "space" ? "Space" : key.uppercased())
+        return s + (Self.symbols[key] ?? key.uppercased())
+    }
+
+    private static let symbols = ["space": "Space", "up": "↑", "down": "↓", "left": "←", "right": "→"]
+    private static func isFunctionKey(_ name: String) -> Bool { name.hasPrefix("f") && name.count > 1 }
+
+    /// The same shortcut as a menu item shows it.
+    var menuKey: String {
+        switch key {
+        case "space": return " "
+        case "up": return String(UnicodeScalar(NSUpArrowFunctionKey)!)
+        case "down": return String(UnicodeScalar(NSDownArrowFunctionKey)!)
+        case "left": return String(UnicodeScalar(NSLeftArrowFunctionKey)!)
+        case "right": return String(UnicodeScalar(NSRightArrowFunctionKey)!)
+        case _ where Self.isFunctionKey(key): return String(UnicodeScalar(NSF1FunctionKey + (Int(key.dropFirst()) ?? 1) - 1)!)
+        default: return key
+        }
+    }
+
+    var menuModifiers: NSEvent.ModifierFlags {
+        var f: NSEvent.ModifierFlags = []
+        if modifiers & UInt32(controlKey) != 0 { f.insert(.control) }
+        if modifiers & UInt32(optionKey) != 0 { f.insert(.option) }
+        if modifiers & UInt32(shiftKey) != 0 { f.insert(.shift) }
+        if modifiers & UInt32(cmdKey) != 0 { f.insert(.command) }
+        return f
     }
 }
 

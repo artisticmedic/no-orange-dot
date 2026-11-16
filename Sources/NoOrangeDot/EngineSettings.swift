@@ -17,7 +17,7 @@ extension Engine {
 
     var settings: Settings {
         var s = Settings()
-        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.returnToUID = returnTo ?? ""; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut
+        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.returnToUID = returnTo ?? ""; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut; s.shortcuts = shortcuts
         s.mics = mics
         s.presets = presets
         if !inputUID.isEmpty { s.mics[inputUID] = activeProfile }
@@ -133,6 +133,7 @@ extension Engine {
             if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
             if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }
             if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
+            if s.shortcuts != shortcuts { shortcuts = s.shortcuts }
             if s.micName != micName { micName = s.micName }
             if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { inputUID = s.inputUID }
             applying = false

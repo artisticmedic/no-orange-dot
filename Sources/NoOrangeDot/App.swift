@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item.button?.target = self
         item.button?.action = #selector(toggle)
         panel = MenuPanelController(engine: engine) { [weak self] in self?.perform($0) }
-        watch = engine.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in MainActor.assumeIsolated { self?.updateIcon(); self?.applyDockPolicy(); self?.applyShortcuts(); self?.applyAppIcon(); self?.applyUpdater() } }
+        watch = engine.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in MainActor.assumeIsolated { self?.updateIcon(); self?.applyDockPolicy(); self?.applyShortcuts(); self?.menus?.refresh(); self?.applyAppIcon(); self?.applyUpdater() } }
         updateIcon()
         DistributedNotificationCenter.default().addObserver(forName: Command.name, object: nil, queue: .main) { [weak self] note in
             guard let verb = note.object as? String else { return }
@@ -511,13 +511,7 @@ struct EditorView: View {
         }
     }
 
-    private var shortcuts: some View {
-        Card {
-            Row(title: "Mute or unmute", caption: "Works in any app. Click to set it, or press × to remove it.") { ShortcutButton(text: $engine.muteShortcut) }
-            RowDivider()
-            Row(title: "Start or stop recording", caption: "Works in any app. Click to set it, or press × to remove it.") { ShortcutButton(text: $engine.recordShortcut) }
-        }
-    }
+    private var shortcuts: some View { ShortcutsCard() }
 
     private var updates: some View {
         Card {
@@ -819,6 +813,7 @@ enum Render {
 struct MicNameRow: View {
     @EnvironmentObject var engine: Engine
     @State private var draft = ""
+    @FocusState private var editing: Bool
 
     var body: some View {
         Row(title: "Name apps see", caption: engine.canRenameMic ? "What this mic is called in Zoom, Meet, other apps and the Mac's sound settings."
@@ -829,6 +824,7 @@ struct MicNameRow: View {
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
                     .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.primary.opacity(0.14), lineWidth: 1))
                     .onSubmit { engine.micName = draft }
+                    .focused($editing)
                     .accessibilityLabel("Name apps see")
                 Button("Rename") { engine.micName = draft }.buttonStyle(PillButtonStyle()).fixedSize()
                     .disabled(draft.trimmingCharacters(in: .whitespaces) == engine.micDisplayName || (draft.isEmpty && engine.micName.isEmpty))
@@ -836,5 +832,6 @@ struct MicNameRow: View {
             .disabled(!engine.canRenameMic)
         }
         .onAppear { draft = engine.micName.isEmpty ? engine.micDisplayName : engine.micName }
+        .onReceive(NotificationCenter.default.publisher(for: .focusMicName)) { _ in editing = true }
     }
 }

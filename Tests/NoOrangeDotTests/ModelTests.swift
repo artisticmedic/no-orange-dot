@@ -22,6 +22,17 @@ final class ModelTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(Band.self, from: Data(#"{"type":"notch","freq":480}"#.utf8)))
     }
 
+    func testBandSelectionWalksByFrequency() {
+        let low = Band(type: .bell, freq: 100, gainDB: 0, q: 1), mid = Band(type: .bell, freq: 1000, gainDB: 0, q: 1), high = Band(type: .bell, freq: 8000, gainDB: 0, q: 1)
+        let bands = [mid, high, low]
+        XCTAssertEqual(Band.neighbour(of: nil, in: bands, step: 1), low.id)
+        XCTAssertEqual(Band.neighbour(of: nil, in: bands, step: -1), high.id)
+        XCTAssertEqual(Band.neighbour(of: low.id, in: bands, step: 1), mid.id)
+        XCTAssertEqual(Band.neighbour(of: high.id, in: bands, step: 1), low.id)
+        XCTAssertEqual(Band.neighbour(of: low.id, in: bands, step: -1), high.id)
+        XCTAssertNil(Band.neighbour(of: nil, in: [], step: 1))
+    }
+
     func testShortcutParsing() {
         XCTAssertEqual(Shortcut("ctrl+opt+cmd+m")?.text, "ctrl+opt+cmd+m")
         XCTAssertEqual(Shortcut("Command + Option + R")?.text, "opt+cmd+r")
@@ -31,6 +42,11 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(Shortcut("cmd+m+r"))
         XCTAssertNil(Shortcut("cmd+nope"))
         XCTAssertNil(Shortcut(""))
+        XCTAssertEqual(Shortcut("opt+cmd+up")?.display, "⌥⌘↑")
+        XCTAssertEqual(Settings().muteShortcut, "", "the app ships with no shortcuts")
+        XCTAssertEqual(Settings().recordShortcut, "")
+        XCTAssertEqual(Set(MenuCommand.all.map(\.id)).count, MenuCommand.all.count, "command IDs are unique")
+        XCTAssertTrue(MenuCommand.all.allSatisfy { MenuCommand.menus.contains($0.menu) })
     }
 
     func testSnapshotSummary() {

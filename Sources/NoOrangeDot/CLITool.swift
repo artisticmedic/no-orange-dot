@@ -125,6 +125,7 @@ struct CLIToolView: View {
                 .accessibilityElement(children: .combine)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .cliToolChanged)) { _ in state = CLITool.state }
     }
 
     private var caption: String {
