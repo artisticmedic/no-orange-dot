@@ -165,6 +165,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
             cmd("listen", on: { e.listenBack }, when: driver) { e.listenBack.toggle() },
             .separator(),
             sub("Input", inputs),
+            cmd("mic-priority") { [weak self] in self?.show(.settings) },
             cmd("system-mic", on: { e.isSystemMicrophone }, when: driver) { e.setSystemMicrophone(!e.isSystemMicrophone) },
             .separator(),
             cmd("gain-up", when: { e.micGain != nil }) { e.refreshMicGain(); if let g = e.micGain { e.setMicGain(g.db + 1) } },
@@ -293,7 +294,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
         func none(_ text: String) { menu.addItem(ActionItem(text, when: { false }) {}) }
         if menu === inputs {
             for input in e.inputs {
-                menu.addItem(ActionItem(input.name, on: { e.inputUID == input.uid }) { e.inputUID = input.uid })
+                menu.addItem(ActionItem(input.name, on: { e.inputUID == input.uid }) { e.chooseInput(input.uid) })
             }
             if e.inputs.isEmpty { none("No microphone found") }
         } else if menu === replace {

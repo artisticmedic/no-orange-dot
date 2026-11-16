@@ -445,7 +445,7 @@ struct EditorView: View {
     private var micMenu: some View {
         Menu {
             ForEach(engine.inputs) { input in
-                Button { engine.inputUID = input.uid } label: {
+                Button { engine.chooseInput(input.uid) } label: {
                     if input.uid == engine.inputUID { Label(input.name, systemImage: "checkmark") } else { Text(input.name) }
                 }
             }
@@ -503,8 +503,8 @@ struct EditorView: View {
                 case .recordings:
                     RecordingsView()
                 case .settings:
+                    VStack(spacing: 8) { SectionLabel(text: "Microphone priority"); MicOrderCard() }
                     VStack(spacing: 8) { SectionLabel(text: "Microphone"); general }
-                    VStack(spacing: 8) { SectionLabel(text: "Mic order"); MicOrderCard() }
                     VStack(spacing: 8) { SectionLabel(text: "Shortcuts"); shortcuts }
                     VStack(spacing: 8) { SectionLabel(text: "App"); app }
                     VStack(spacing: 8) { SectionLabel(text: "Updates"); updates }
@@ -571,10 +571,10 @@ struct EditorView: View {
         Card {
             MicNameRow()
             RowDivider()
-            Row(title: "Real microphone", caption: "The mic this app opens. EQ and dynamics are saved per mic. Choosing one puts it first in the mic order.") {
+            Row(title: "Real microphone", caption: "Choose a microphone for now. Its EQ and dynamics stay saved, and your priority list stays unchanged.") {
                 Menu {
                     ForEach(engine.inputs) { input in
-                        Button { engine.inputUID = input.uid } label: {
+                        Button { engine.chooseInput(input.uid) } label: {
                             if input.uid == engine.inputUID { Label(input.name, systemImage: "checkmark") } else { Text(input.name) }
                         }
                     }

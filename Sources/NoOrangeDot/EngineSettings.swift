@@ -19,6 +19,11 @@ extension Engine {
         var s = Settings()
         s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.micOrder = micOrder; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut; s.shortcuts = shortcuts
         s.mics = mics
+        for (uid, name) in seenNames {
+            var profile = s.mics[uid] ?? MicProfile()
+            profile.name = name
+            s.mics[uid] = profile
+        }
         s.presets = presets
         if !inputUID.isEmpty { s.mics[inputUID] = activeProfile }
         return s
@@ -135,10 +140,10 @@ extension Engine {
             if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
             if s.shortcuts != shortcuts { shortcuts = s.shortcuts }
             if s.micName != micName { micName = s.micName }
-            if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { inputUID = s.inputUID }
+            if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { chooseInput(s.inputUID) }
             applying = false
             load(mics[inputUID] ?? MicProfile())
-            if preferredInput != inputUID { rebuild() }
+            if (selectedInput ?? "") != inputUID { rebuild() }
             if micOrder != s.micOrder { changed() }
         }
     }

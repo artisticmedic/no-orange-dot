@@ -58,7 +58,9 @@ nod shortcut mute ctrl+opt+cmd+m
 nod history restore 1
 ```
 
-Microphones are kept in an order of preference under Settings → Mic order, and the app uses the first one that is plugged in. Choosing a microphone puts it first. `nod mics` lists the order and `nod mics move <name> <place>` changes it.
+Settings → Microphone priority lets you include or exclude each microphone and move included ones up or down. Included microphones take priority, in your chosen order. New microphones stay excluded until you include them, and unplugged microphones keep their place. If no included mic is connected, the app keeps the current microphone if available, or automatically picks another. You can still choose any connected microphone manually. A manual choice lasts until it disconnects, an included microphone reconnects, you edit the priority list, or the app restarts. Choosing a mic never changes the list. The Microphone → Microphone Priority… menu opens these controls.
+
+`nod mics` lists included and other known microphones. `nod mics include <name>`, `nod mics exclude <name>`, and `nod mics move <name> <place>` change membership and order. Excluding a microphone keeps its saved EQ and settings.
 
 ## Requirements
 

@@ -11,8 +11,31 @@ extension Band {
 }
 
 extension Engine {
-    /// The highest microphone in the order that is plugged in.
-    var preferredInput: String? { micOrder.first { uid in inputs.contains { $0.uid == uid } } }
+    var selectedInput: String? {
+        let available = inputs.map(\.uid)
+        return MicrophonePriority.select(order: micOrder, available: available, previouslyAvailable: available, manual: manualInputUID, current: inputUID)
+    }
+
+    var otherMicUIDs: [String] {
+        let known = Set(inputs.map(\.uid)).union(seenNames.keys).union(mics.keys)
+        return known.filter { !$0.isEmpty && !micOrder.contains($0) }.sorted {
+            let a = micName(for: $0) ?? $0, b = micName(for: $1) ?? $1
+            return a == b ? $0 < $1 : a.localizedStandardCompare(b) == .orderedAscending
+        }
+    }
+
+    func chooseInput(_ uid: String) {
+        guard inputs.contains(where: { $0.uid == uid }) else { return }
+        manualInputUID = uid
+        inputUID = uid
+    }
+
+    func includeMic(_ uid: String, included: Bool) {
+        var s = settings
+        s.includeMic(uid, included: included)
+        micOrder = s.micOrder
+        if (selectedInput ?? "") != inputUID { rebuild() }
+    }
 
     func micName(for uid: String) -> String? { seenNames[uid] ?? mics[uid].map(\.name).flatMap { $0.isEmpty ? nil : $0 } }
 
@@ -20,7 +43,7 @@ extension Engine {
     func moveMic(_ uid: String, past other: String) {
         guard let a = micOrder.firstIndex(of: uid), let b = micOrder.firstIndex(of: other) else { return }
         micOrder.swapAt(a, b)
-        if preferredInput != inputUID { rebuild() }
+        if (selectedInput ?? "") != inputUID { rebuild() }
     }
 
     static let heatMapKey = "heatMap"

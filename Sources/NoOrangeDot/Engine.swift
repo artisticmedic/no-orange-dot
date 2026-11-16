@@ -30,15 +30,16 @@ final class Engine: ObservableObject {
     @Published var inputUID: String {
         didSet {
             guard inputUID != oldValue else { return }
-            if !fallingBack { micOrder = [inputUID] + micOrder.filter { $0 != inputUID } }
             switchProfile(from: oldValue); rebuild(); changed()
         }
     }
-    /// Microphones from most to least preferred. The first one that is plugged in is the one in use.
-    @Published var micOrder: [String] = [] { didSet { if micOrder != oldValue { changed() } } }
+    /// These microphones take priority over other available inputs, in this order.
+    @Published var micOrder: [String] = [] {
+        didSet { if micOrder != oldValue { manualInputUID = nil; changed() } }
+    }
     /// Names of microphones seen since launch, so one that was just unplugged keeps its name.
     var seenNames: [String: String] = [:]
-    var fallingBack = false
+    var manualInputUID: String?
     var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
     var mics: [String: MicProfile] = [:]
@@ -221,7 +222,27 @@ final class Engine: ObservableObject {
     }
 
     func devicesChanged() {
-        if currentSignature() != deviceSignature { rebuild() }
+        let signature = currentSignature()
+        guard signature != deviceSignature else { return }
+        let pick = refreshInputs()
+        let driver = HAL.device(uid: Brand.micUID) != nil && HAL.device(uid: Brand.feedUID) != nil
+        if pick != inputUID || driver != driverInstalled { rebuild() }
+        else { deviceSignature = signature }
+    }
+
+    private func refreshInputs() -> String {
+        let previouslyAvailable = inputs.map(\.uid)
+        inputs = HAL.inputDevices()
+        var namesChanged = false
+        for input in inputs {
+            if micName(for: input.uid) != input.name { namesChanged = true }
+            seenNames[input.uid] = input.name
+        }
+        if namesChanged { changed() }
+        let pick = MicrophonePriority.select(order: micOrder, available: inputs.map(\.uid),
+                                             previouslyAvailable: previouslyAvailable, manual: manualInputUID, current: inputUID)
+        if pick != manualInputUID { manualInputUID = nil }
+        return pick ?? ""
     }
 
     func coreAudioRestarted() {
@@ -246,13 +267,8 @@ final class Engine: ObservableObject {
         stop()
         teardown()
         deviceSignature = currentSignature()
-        inputs = HAL.inputDevices()
-        for input in inputs { seenNames[input.uid] = input.name }
-        var unranked = inputs.map(\.uid).filter { !micOrder.contains($0) }
-        if micOrder.isEmpty, let i = unranked.firstIndex(of: HAL.defaultInputUID() ?? "") { unranked.insert(unranked.remove(at: i), at: 0) }
-        if !unranked.isEmpty { micOrder += unranked }
-        if let pick = preferredInput, pick != inputUID {
-            fallingBack = true; defer { fallingBack = false }
+        let pick = refreshInputs()
+        if pick != inputUID {
             inputUID = pick; return // didSet re-enters rebuild
         }
         micDevice = HAL.device(uid: Brand.micUID)
@@ -460,7 +476,7 @@ final class Engine: ObservableObject {
             // Another app can change the mic's sample rate. The EQ is computed for one rate, so follow it.
             else if builtRate > 0, let source = HAL.device(uid: inputUID), HAL.sampleRate(source) != builtRate { rebuild() }
             // Setup can fail while Core Audio is still restarting. Keep trying until it holds.
-            else if driverInstalled, ioProc == nil, ticks % 40 == 0 { rebuild() }
+            else if driverInstalled, !inputUID.isEmpty, ioProc == nil, ticks % 40 == 0 { rebuild() }
             pollConfig(); writeStatus()
             if ticks % 20 == 0 { refreshListeners() }
             if ticks % 20 == 0 || gainLockDB != nil { refreshMicGain() }

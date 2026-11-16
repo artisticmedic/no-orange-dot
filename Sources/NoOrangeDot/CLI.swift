@@ -40,8 +40,10 @@ enum CLI {
       nod auto-eq file <audio> [target=warm|neutral|bright] [strength=1] [apply] [out=<wav>] [curves]
                                          work out an EQ from a recording of speech
       nod input list | nod input <name>
-      nod mics                           microphones in order of preference. The app uses the first one plugged in.
-      nod mics move <name> <place>       move a microphone to a place in that order, counted from 1
+      nod mics                           included microphones in priority order, then other known microphones
+      nod mics include <name>           add a microphone to automatic selection
+      nod mics exclude <name>           remove it from automatic selection, keeping its saved sound
+      nod mics move <name> <place>       reorder an included microphone, counted from 1
       nod output <dB>
       nod play <name> | nod play stop    replay a recording's raw take through the current EQ, looped
       nod name [<text>|reset]            show or change the name apps see for the mic
@@ -217,19 +219,40 @@ enum CLI {
             guard case .ok(let s) = Settings.load() else { return fail("No settings file yet.") }
             let names = Dictionary(HAL.inputDevices().map { ($0.uid, $0.name) }, uniquingKeysWith: { a, _ in a })
             func name(_ uid: String) -> String { names[uid] ?? s.mics[uid].map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? uid }
+            if rest.first == "include" || rest.first == "exclude" {
+                let want = rest.dropFirst().joined(separator: " ").lowercased()
+                guard !want.isEmpty else { return fail("Use: nod mics include|exclude <name>") }
+                let known = Array(Set(s.micOrder).union(s.mics.keys).union(names.keys)).sorted()
+                let exact = known.filter { name($0).lowercased() == want || $0.lowercased() == want }
+                let matches = exact.isEmpty ? known.filter { name($0).lowercased().contains(want) } : exact
+                guard matches.count == 1, let uid = matches.first else {
+                    return fail(matches.isEmpty ? "No microphone matches that name. Try: nod mics" : "More than one microphone matches. Use its full name or device ID.")
+                }
+                guard edit({ settings in
+                    settings.includeMic(uid, included: rest.first == "include")
+                    var profile = settings.mics[uid] ?? MicProfile()
+                    profile.name = name(uid)
+                    settings.mics[uid] = profile
+                }) == 0 else { return 1 }
+                return run(["mics"])
+            }
             if rest.first == "move" {
                 guard rest.count >= 3, let place = Int(rest.last!), place >= 1 else { return fail("Use: nod mics move <name> <place>") }
                 let want = rest[1..<(rest.count - 1)].joined(separator: " ").lowercased()
-                let listed = s.micOrder + s.mics.keys.sorted().filter { !s.micOrder.contains($0) }
+                let listed = s.micOrder
                 guard let uid = listed.first(where: { name($0).lowercased() == want }) ?? listed.first(where: { name($0).lowercased().contains(want) }) else {
                     return fail("No microphone matches \"\(want)\". Try: nod mics")
                 }
                 guard edit({ $0.moveMic(uid, to: place) }) == 0 else { return 1 }
                 return run(["mics"])
             }
-            for (i, uid) in (s.micOrder + s.mics.keys.sorted().filter { !s.micOrder.contains($0) }).enumerated() {
+            guard rest.isEmpty else { return fail("Use: nod mics, or nod mics include|exclude|move <name> [place]") }
+            let other = Set(s.mics.keys).union(names.keys).filter { !$0.isEmpty && !s.micOrder.contains($0) }.sorted { name($0) < name($1) }
+            for (i, uid) in (s.micOrder + other).enumerated() {
                 let sound = s.mics[uid].map { p in "  (\(p.bands.filter(\.on).count) bands\(p.dynamics.gateOn ? ", gate" : "")\(p.dynamics.compOn ? ", compressor" : ""))" } ?? ""
-                print("\(uid == s.inputUID ? "*" : " ") \(i + 1). \(name(uid))\(names[uid] == nil ? "  (not plugged in)" : "")\(sound)")
+                let rank = i < s.micOrder.count ? "\(i + 1)." : "–"
+                let membership = i < s.micOrder.count ? "" : "  (not included)"
+                print("\(uid == s.inputUID ? "*" : " ") \(rank) \(name(uid))\(membership)\(names[uid] == nil ? "  (not plugged in)" : "")\(sound)")
             }
             return 0
         case "system":
@@ -344,7 +367,7 @@ enum CLI {
             guard let d = devices.first(where: { $0.name.lowercased() == want }) ?? devices.first(where: { $0.name.lowercased().contains(want) }) else {
                 return fail("No microphone matches \"\(rest.joined(separator: " "))\". Try: nod input list")
             }
-            return done(edit { $0.prefer(d.uid) })
+            return done(edit { $0.selectInput(d.uid) })
         default: break
         }
 

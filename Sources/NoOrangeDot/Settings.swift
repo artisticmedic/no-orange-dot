@@ -91,7 +91,7 @@ struct SoundPreset: Codable, Identifiable, Equatable {
 struct Settings: Codable, Equatable {
     var muted = false
     var inputUID = ""
-    /// Microphones from most to least preferred, by device ID. The app uses the first one that is plugged in.
+    /// Included microphones, from most to least preferred. Other inputs are used only when none are connected.
     var micOrder: [String] = []
     var icon = "eclipse"
     /// Which Dock icon the app wears while it runs: "paint" or "carbon".
@@ -125,15 +125,20 @@ struct Settings: Codable, Equatable {
         else { shortcuts[id] = text.isEmpty ? nil : text }
     }
 
-    /// Choosing a microphone puts it first, so it is the one the app comes back to.
-    mutating func prefer(_ uid: String) {
-        inputUID = uid
-        micOrder.removeAll { $0 == uid }
-        micOrder.insert(uid, at: 0)
+    /// A manual choice leaves priority membership and ordering unchanged.
+    mutating func selectInput(_ uid: String) { inputUID = uid }
+
+    mutating func includeMic(_ uid: String, included: Bool) {
+        if included {
+            if !micOrder.contains(uid) { micOrder.append(uid) }
+        } else {
+            micOrder.removeAll { $0 == uid }
+        }
     }
 
     /// Moves a microphone to a place in the order, counted from 1.
     mutating func moveMic(_ uid: String, to place: Int) {
+        guard micOrder.contains(uid) else { return }
         micOrder.removeAll { $0 == uid }
         micOrder.insert(uid, at: min(max(place - 1, 0), micOrder.count))
     }
@@ -172,10 +177,12 @@ struct Settings: Codable, Equatable {
         micName = try c.decodeIfPresent(String.self, forKey: .micName) ?? ""
         let old = try decoder.container(keyedBy: LegacyKeys.self)
         // Files from before the order kept the chosen microphone in returnToUID while a stand-in was in use.
-        if micOrder.isEmpty {
+        if !c.contains(.micOrder) {
             let chosen = try old.decodeIfPresent(String.self, forKey: .returnToUID) ?? ""
             for uid in [chosen, inputUID] where !uid.isEmpty && !micOrder.contains(uid) { micOrder.append(uid) }
         }
+        var seen = Set<String>()
+        micOrder = micOrder.filter { !$0.isEmpty && seen.insert($0).inserted }
         // Files from before per-microphone sound kept one set of values at the top level.
         if mics[inputUID] == nil, let bands = try old.decodeIfPresent([Band].self, forKey: .bands) {
             var p = MicProfile()

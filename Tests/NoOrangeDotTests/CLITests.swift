@@ -116,6 +116,23 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try nod("mics", "move", "laptop", "0").code, 1)
     }
 
+    func testMicPriorityMembershipAndEmptyListPersist() throws {
+        try Data(#"{"inputUID":"a","micOrder":["a","b"],"mics":{"a":{"name":"Fixture Desk Mic","outputGainDB":-4},"b":{"name":"Fixture Laptop Mic"}}}"#.utf8).write(to: config)
+        XCTAssertEqual(try nod("mics", "exclude", "Fixture Desk Mic").code, 0)
+        XCTAssertEqual(try settings()["micOrder"] as? [String], ["b"])
+        XCTAssertEqual(try nod("mics", "move", "Fixture Desk Mic", "1").code, 1)
+        XCTAssertTrue(try nod("mics").out.contains("Fixture Desk Mic  (not included)"))
+        XCTAssertEqual(try nod("mics", "exclude", "Fixture Laptop Mic").code, 0)
+        XCTAssertEqual(try settings()["micOrder"] as? [String], [])
+        XCTAssertEqual(try nod("mute", "on").code, 0)
+        XCTAssertEqual(try settings()["micOrder"] as? [String], [], "reloading must not reinclude the active mic")
+        XCTAssertEqual(try nod("mics", "include", "Fixture Desk Mic").code, 0)
+        XCTAssertEqual(try nod("mics", "include", "Fixture Desk Mic").code, 0)
+        XCTAssertEqual(try settings()["micOrder"] as? [String], ["a"])
+        let mics = try XCTUnwrap(try settings()["mics"] as? [String: [String: Any]])
+        XCTAssertEqual(mics["a"]?["outputGainDB"] as? Double, -4)
+    }
+
     func testABrokenSettingsFileIsLeftAlone() throws {
         let junk = Data("{ not json".utf8)
         try junk.write(to: config)

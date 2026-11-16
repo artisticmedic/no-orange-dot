@@ -20,6 +20,7 @@ extension Engine {
         if !driverInstalled { return "Driver missing" }
         if recording { return "Recording" }
         if muted { return "Muted" }
+        if inputUID.isEmpty { return "Choose a microphone" }
         if !running { return "Mic off" }
         let who = Self.sentenceList(listeners)
         if !who.isEmpty { return "\(who) \(listeners.count == 1 ? "is" : "are") using the mic" }
@@ -31,6 +32,7 @@ extension Engine {
         let who = Self.sentenceList(listeners)
         if muted { return who.isEmpty ? "The mic stays closed" : "\(who) \(listeners.count == 1 ? "hears" : "hear") silence" }
         if recording { return "Saving to \(recordingsURL.lastPathComponent)" }
+        if inputUID.isEmpty { return "No microphone is connected" }
         if !running { return "No app is using it" }
         return ""
     }

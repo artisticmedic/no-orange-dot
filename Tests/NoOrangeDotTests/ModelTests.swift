@@ -55,12 +55,12 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(EQSnapshot(date: Date(), mic: "Mic", bands: [Band(type: .bell, freq: 1000, gainDB: 0, q: 1)]).summary, "1 band")
     }
 
-    func testChoosingAMicPutsItFirst() {
+    func testChoosingAMicDoesNotChangePriorityMembership() {
         var s = Settings()
         s.micOrder = ["a", "b", "c"]
-        s.prefer("c")
-        XCTAssertEqual(s.inputUID, "c")
-        XCTAssertEqual(s.micOrder, ["c", "a", "b"])
+        s.selectInput("other")
+        XCTAssertEqual(s.inputUID, "other")
+        XCTAssertEqual(s.micOrder, ["a", "b", "c"])
         s.moveMic("c", to: 2)
         XCTAssertEqual(s.micOrder, ["a", "c", "b"])
         s.moveMic("a", to: 99)
