@@ -8,17 +8,17 @@ import SwiftUI
 extension Engine {
     // MARK: Status in words
 
-    var markState: AppMark.State { muted ? .muted : recording ? .recording : running ? .live : .idle }
+    var markState: AppMark.State { muted ? .muted : recording && !recordingPaused ? .recording : running ? .live : .idle }
 
     var statusColor: Color {
-        if recording { return .red }
+        if recording { return recordingPaused ? .secondary : .red }
         if muted { return .orange }
         return running ? .green : .secondary
     }
 
     var statusTitle: String {
         if !driverInstalled { return "Driver missing" }
-        if recording { return "Recording" }
+        if recording { return recordingPaused ? "Recording paused" : "Recording" }
         if muted { return "Muted" }
         if inputUID.isEmpty { return "Choose a microphone" }
         if !running { return "Mic off" }
@@ -35,6 +35,18 @@ extension Engine {
         if inputUID.isEmpty { return "No microphone is connected" }
         if !running { return "No app is using it" }
         return ""
+    }
+
+    /// Said under the status when an app reads the real microphone directly, around the EQ.
+    var directUseNote: String? {
+        let who = Self.sentenceList(directUsers)
+        guard !who.isEmpty, let mic = inputs.first(where: { $0.uid == inputUID })?.name else { return nil }
+        return "\(who) \(directUsers.count == 1 ? "is" : "are") using \(mic) directly, so \(directUsers.count == 1 ? "it hears" : "they hear") it without the EQ."
+    }
+
+    func refreshDirectUsers() {
+        let names = HAL.device(uid: inputUID).map { HAL.inputClients(of: $0).map(\.name) } ?? []
+        if names != directUsers { directUsers = names }
     }
 
     static func sentenceList(_ names: [String]) -> String {

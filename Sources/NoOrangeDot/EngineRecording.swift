@@ -16,14 +16,40 @@ extension Engine {
         do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
         catch { self.error = "Couldn't use the recordings folder at \(dir.path). Choose another one."; return }
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let url = dir.appendingPathComponent("\(f.string(from: Date())).wav")
+        let stamp = f.string(from: Date())
+        var url = dir.appendingPathComponent("\(stamp).wav"), n = 2
+        // Two takes started in the same second would otherwise share a name, and the second would erase the first.
+        while FileManager.default.fileExists(atPath: url.path) { url = dir.appendingPathComponent("\(stamp) \(n).wav"); n += 1 }
         guard let file = makeFile(url) else { error = "Couldn't create the recording file."; return }
         recordFile = file
         // The raw take, hidden beside it, so the recording can be replayed through a different EQ later.
         recordRawFile = makeFile(Recording.rawURL(for: url))
+        recordedBefore = 0
+        recordSegmentStart = Date()
+        recordingPaused = false
+        justSaved = nil
         recordFlag = true
         recording = true
         lastRecording = url
+        evaluate()
+    }
+
+    /// Time recorded so far, not counting pauses.
+    var recordingElapsed: TimeInterval { recordedBefore + (recordSegmentStart.map { Date().timeIntervalSince($0) } ?? 0) }
+
+    /// Stops writing without ending the take. While paused the mic can close.
+    func togglePause() {
+        guard recording else { return }
+        if recordingPaused {
+            recordSegmentStart = Date()
+            recordingPaused = false
+            recordFlag = true
+        } else {
+            recordFlag = false
+            recordedBefore = recordingElapsed
+            recordSegmentStart = nil
+            recordingPaused = true
+        }
         evaluate()
     }
 
@@ -46,13 +72,31 @@ extension Engine {
         guard recording else { return }
         recordFlag = false
         recording = false
+        recordingPaused = false
+        recordSegmentStart = nil
         evaluate()
-        let file = recordFile, raw = recordRawFile
+        let file = recordFile, raw = recordRawFile, url = lastRecording
         recordFile = nil; recordRawFile = nil
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+        let close = {
             if let file { ExtAudioFileDispose(file) }
             if let raw { ExtAudioFileDispose(raw) }
-            DispatchQueue.main.async { [weak self] in self?.refreshRecordings() }
+        }
+        // With the audio stopped nothing can still be writing, so close now: the app may be quitting.
+        guard running else { close(); announceSaved(url); return }
+        // Otherwise give the audio thread time to finish the block it may be writing.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+            close()
+            DispatchQueue.main.async { [weak self] in self?.announceSaved(url) }
+        }
+    }
+
+    private func announceSaved(_ url: URL?) {
+        withRecordings { [weak self] list in
+            guard let self, let take = list.first(where: { $0.url == url }) else { return }
+            self.justSaved = take
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+                if self?.justSaved == take { self?.justSaved = nil }
+            }
         }
     }
 

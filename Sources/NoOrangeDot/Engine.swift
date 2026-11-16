@@ -88,6 +88,12 @@ final class Engine: ObservableObject {
     // Replaying a raw take through the EQ, to hear a change on the same words.
     @Published var auditioning: URL?
     @Published var auditionLoop = true { didSet { player.loop = auditionLoop } }
+    @Published var recordingPaused = false
+    /// The take that was just saved, shown in the top bar for a few seconds.
+    @Published var justSaved: Recording?
+    var recordedBefore: TimeInterval = 0
+    var shuttingDown = false
+    var recordSegmentStart: Date?
     let player = AuditionPlayer()
 
     @Published var measureProgress: Double?     // 0...1 while automatic EQ is listening, otherwise nil
@@ -205,6 +211,8 @@ final class Engine: ObservableObject {
 
     /// Names of the apps reading the virtual mic right now.
     @Published var listeners: [String] = []
+    /// Apps reading the real microphone directly, so they hear it without the EQ.
+    @Published var directUsers: [String] = []
     /// The icon of the first app using the mic, when it is an app with one.
     @Published var listenerIcon: NSImage?
     var listenerPID: pid_t = 0
@@ -333,7 +341,8 @@ final class Engine: ObservableObject {
         aggregate = kAudioObjectUnknown
     }
 
-    func shutdown() { stopRecording(); stop(); teardown() }
+    /// Stops the audio first, so the recording files can be closed before the app exits.
+    func shutdown() { shuttingDown = true; stop(); stopRecording(); teardown() }
 
     // MARK: The name apps see
 
@@ -387,7 +396,8 @@ final class Engine: ObservableObject {
     }
 
     func evaluate() {
-        let want = (clientsActive && !muted) || recording || monitoring || listenBack
+        guard !shuttingDown else { return }
+        let want = (clientsActive && !muted) || (recording && !recordingPaused) || monitoring || listenBack
         if want && !running { start() } else if !want && running { stop() }
     }
 
@@ -444,6 +454,10 @@ final class Engine: ObservableObject {
         peak = p
 
         if recordFlag, let file = recordFile {
+            if mutedFlag {
+                memset(left, 0, frames * 4); memset(rawLeft, 0, frames * 4)
+                if stereo { memset(right, 0, frames * 4); memset(rawRight, 0, frames * 4) }
+            }
             write(file, left, right, frames: frames, stereo: stereo)
             if let raw = recordRawFile { write(raw, rawLeft, rawRight, frames: frames, stereo: stereo) }
         }
@@ -478,7 +492,7 @@ final class Engine: ObservableObject {
             // Setup can fail while Core Audio is still restarting. Keep trying until it holds.
             else if driverInstalled, !inputUID.isEmpty, ioProc == nil, ticks % 40 == 0 { rebuild() }
             pollConfig(); writeStatus()
-            if ticks % 20 == 0 { refreshListeners() }
+            if ticks % 20 == 0 { refreshListeners(); refreshDirectUsers() }
             if ticks % 20 == 0 || gainLockDB != nil { refreshMicGain() }
         }
         if auditioning != nil {

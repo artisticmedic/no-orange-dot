@@ -407,6 +407,10 @@ struct EditorView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12).padding(.top, 12)
+            if let note = engine.directUseNote {
+                Text(note).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12).padding(.top, 6)
+            }
             Live(engine.meters) { m in LevelMeter(level: engine.running ? m.level : 0) }.frame(height: 5).opacity(engine.running ? 1 : 0.4)
                 .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 10)
             Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
@@ -470,13 +474,19 @@ struct EditorView: View {
             Text(tab.rawValue).font(.system(size: 15, weight: .semibold))
             Spacer()
             if engine.driverInstalled {
+                if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
+                if engine.auditioning != nil, !engine.recording { PlayingChip() }
                 Button { if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }; engine.listenBack.toggle() } label: { Label(engine.listenBack ? "Listening" : "Listen", systemImage: "headphones") }
                     .buttonStyle(TopBarButtonStyle(active: engine.listenBack, tint: .accentColor))
                     .help("Hear your own voice, with the EQ, in your headphones")
                     .accessibilityLabel(engine.listenBack ? "Stop listening to yourself" : "Listen to yourself")
-                Button { engine.toggleRecording() } label: { Label(engine.recording ? "Stop" : "Record", systemImage: engine.recording ? "stop.fill" : "record.circle") }
-                    .buttonStyle(TopBarButtonStyle(active: engine.recording, tint: .red))
-                    .accessibilityLabel(engine.recording ? "Stop recording" : "Record")
+                if engine.recording {
+                    RecordingControls()
+                } else {
+                    Button { engine.toggleRecording() } label: { Label("Record", systemImage: "record.circle") }
+                        .buttonStyle(TopBarButtonStyle(active: false, tint: .red))
+                        .accessibilityLabel("Record")
+                }
             }
         }
         .padding(.leading, 28).padding(.trailing, 16)

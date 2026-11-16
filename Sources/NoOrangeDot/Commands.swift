@@ -45,6 +45,7 @@ struct MenuCommand: Identifiable, Equatable {
         MenuCommand(id: "band-narrower", menu: "Band", title: "Narrow"),
 
         MenuCommand(id: record, menu: "Recordings", title: "Start or Stop Recording", global: true),
+        MenuCommand(id: "pause-recording", menu: "Recordings", title: "Pause Recording"),
         MenuCommand(id: "play-last", menu: "Recordings", title: "Play Last Recording"),
         MenuCommand(id: "stop-playing", menu: "Recordings", title: "Stop Playing"),
         MenuCommand(id: "loop", menu: "Recordings", title: "Loop"),

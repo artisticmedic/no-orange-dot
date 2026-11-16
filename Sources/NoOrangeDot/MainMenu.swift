@@ -222,6 +222,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
 
         add("Recordings", [
             cmd(MenuCommand.record, "Start Recording", title: { e.recording ? "Stop Recording" : "Start Recording" }, when: driver) { e.toggleRecording() },
+            cmd("pause-recording", title: { e.recordingPaused ? "Resume Recording" : "Pause Recording" }, when: { e.recording }) { e.togglePause() },
             .separator(),
             cmd("play-last") { [weak self] in
                 e.withRecordings { list in
