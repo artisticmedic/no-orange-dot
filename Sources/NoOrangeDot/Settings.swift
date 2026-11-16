@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// The sound saved for one microphone.
@@ -200,6 +201,7 @@ struct Settings: Codable, Equatable {
         ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("NoOrangeDot")
     static let file = directory.appendingPathComponent("config.json")
     static let statusFile = directory.appendingPathComponent("status.json")
+    static let store = SettingsStore(file: file)
 
     var recordingsURL: URL {
         recordingsFolder.isEmpty
@@ -210,28 +212,73 @@ struct Settings: Codable, Equatable {
     enum LoadResult { case missing, ok(Settings), invalid(String) }
 
     static func load() -> LoadResult {
-        guard let data = try? Data(contentsOf: file) else { return .missing }
-        do { return .ok(try JSONDecoder().decode(Settings.self, from: data)) }
-        catch { return .invalid("config.json has an error, so it is being ignored: \(Self.describe(error))") }
+        do {
+            let snapshot = try store.read()
+            return snapshot.revision == nil ? .missing : .ok(snapshot.settings)
+        } catch { return .invalid(error.localizedDescription) }
     }
 
-    func save() {
-        try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
-        let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? e.encode(self) { try? data.write(to: Self.file, options: .atomic) }
-    }
-
-    static func modified() -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
-    }
-
-    private static func describe(_ error: Error) -> String {
+    fileprivate static func describe(_ error: Error) -> String {
         switch error {
         case DecodingError.dataCorrupted(let c): return c.debugDescription
         case DecodingError.typeMismatch(_, let c), DecodingError.valueNotFound(_, let c), DecodingError.keyNotFound(_, let c):
             return "\(c.codingPath.map(\.stringValue).joined(separator: ".")): \(c.debugDescription)"
         default: return error.localizedDescription
         }
+    }
+}
+
+struct SettingsStore {
+    struct Snapshot {
+        var settings: Settings
+        let revision: Data?
+    }
+
+    enum Failure: LocalizedError {
+        case changed
+        case read(Error)
+        case invalid(Error)
+        case write(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .changed: return "config.json changed outside the app. The newer settings were kept; try your change again."
+            case .read(let error): return "Couldn't read config.json: \(error.localizedDescription)"
+            case .invalid(let error): return "config.json has an error, so it is being ignored: \(Settings.describe(error))"
+            case .write(let error): return "Couldn't save config.json: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    let file: URL
+
+    func read() throws -> Snapshot {
+        let data: Data
+        do { data = try Data(contentsOf: file) }
+        catch let error as CocoaError where error.code == .fileReadNoSuchFile { return Snapshot(settings: Settings(), revision: nil) }
+        catch { throw Failure.read(error) }
+        do { return Snapshot(settings: try JSONDecoder().decode(Settings.self, from: data), revision: data) }
+        catch { throw Failure.invalid(error) }
+    }
+
+    /// GUI and CLI writers share a lock; hand edits are checked against the exact bytes that were loaded.
+    func save(_ settings: Settings, expecting revision: Data?) throws -> Snapshot {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data: Data
+        let directory = file.deletingLastPathComponent()
+        do {
+            data = try encoder.encode(settings)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch { throw Failure.write(error) }
+        let lock = open(directory.appendingPathComponent("config.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard lock >= 0 else { throw Failure.write(NSError(domain: NSPOSIXErrorDomain, code: Int(errno))) }
+        defer { close(lock) }
+        guard flock(lock, LOCK_EX) == 0 else { throw Failure.write(NSError(domain: NSPOSIXErrorDomain, code: Int(errno))) }
+        defer { flock(lock, LOCK_UN) }
+        guard try read().revision == revision else { throw Failure.changed }
+        do { try data.write(to: file, options: .atomic) }
+        catch { throw Failure.write(error) }
+        return Snapshot(settings: settings, revision: data)
     }
 }
 

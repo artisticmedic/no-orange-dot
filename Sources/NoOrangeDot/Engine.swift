@@ -124,7 +124,7 @@ final class Engine: ObservableObject {
 
     var applying = false
     var saveWork: DispatchWorkItem?
-    var configStamp: Date?
+    var configSnapshot: SettingsStore.Snapshot?
     var lastStatus = Status()
     var ticks = 0
 
@@ -156,12 +156,12 @@ final class Engine: ObservableObject {
 
     init() {
         var s = Settings()
-        switch Settings.load() {
-        case .ok(let loaded): s = loaded
-        case .invalid(let why): configProblem = why
-        case .missing: s.save()
-        }
-        configStamp = Settings.modified()
+        do {
+            let snapshot = try Settings.store.read()
+            s = snapshot.settings
+            configSnapshot = snapshot
+            if snapshot.revision == nil { configSnapshot = try Settings.store.save(s, expecting: nil) }
+        } catch { configProblem = error.localizedDescription }
         muted = s.muted
         inputUID = s.inputUID
         mics = s.mics

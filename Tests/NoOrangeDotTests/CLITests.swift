@@ -142,6 +142,40 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: config), junk)
     }
 
+    func testGetRejectsAnInvalidSettingsFile() throws {
+        let junk = Data("{ not json".utf8)
+        try junk.write(to: config)
+        let result = try nod("get")
+        XCTAssertEqual(result.code, 1)
+        XCTAssertTrue(result.out.isEmpty)
+        XCTAssertFalse(result.err.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: config), junk)
+    }
+
+    func testFailedSaveReturnsFailureInsteadOfPrintingOldSettings() throws {
+        XCTAssertEqual(try nod("get").code, 0)
+        let before = try Data(contentsOf: config)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: home.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: home.path) }
+        let result = try nod("mute", "on")
+        XCTAssertEqual(result.code, 1)
+        XCTAssertTrue(result.out.isEmpty)
+        XCTAssertTrue(result.err.contains("Couldn't save config.json"), result.err)
+        XCTAssertEqual(try Data(contentsOf: config), before)
+    }
+
+    func testUnreadableConfigIsNotReplacedWithDefaults() throws {
+        XCTAssertEqual(try nod("get").code, 0)
+        let before = try Data(contentsOf: config)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: config.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: config.path) }
+        let result = try nod("mute", "on")
+        XCTAssertEqual(result.code, 1)
+        XCTAssertTrue(result.err.contains("Couldn't read config.json"), result.err)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: config.path)
+        XCTAssertEqual(try Data(contentsOf: config), before)
+    }
+
     func testUpdateCheckAgainstALocalFeed() throws {
         let feed = home.appendingPathComponent("latest.json")
         XCTAssertEqual(try nod("update", "feed", "http://example.com/latest.json").code, 1)

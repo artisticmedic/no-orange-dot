@@ -100,52 +100,61 @@ extension Engine {
 
     func clearHistory() { history = []; EQSnapshot.save(history) }
 
-    /// A change made in the app. Saved shortly after it settles, unless config.json is broken:
-    /// then nothing is written, so a hand edit in progress is never overwritten.
+    /// A pending app edit may replace only the disk version it was based on.
     func changed() {
-        guard !applying, configProblem == nil else { return }
+        guard !applying, let snapshot = configSnapshot else { return }
         saveWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            self.settings.save()
-            self.configStamp = Settings.modified()
+            self.saveWork = nil
+            do {
+                self.configSnapshot = try Settings.store.save(self.settings, expecting: snapshot.revision)
+                self.configProblem = nil
+            } catch {
+                self.pollConfig()
+                self.configProblem = error.localizedDescription
+            }
         }
         saveWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
-    /// Picks up edits made to config.json by hand, by a script or by an agent.
+    /// External changes win over pending app edits, including invalid or unreadable files.
     func pollConfig() {
-        let stamp = Settings.modified()
-        guard stamp != configStamp else { return }
-        configStamp = stamp
-        switch Settings.load() {
-        case .missing: break
-        case .invalid(let why): configProblem = why
-        case .ok(let s):
-            configProblem = nil
-            guard s != settings else { return }
-            applying = true
-            mics = s.mics
-            if s.muted != muted { muted = s.muted }
-            if s.icon != icon { icon = s.icon }
-            if s.appIcon != appIcon { appIcon = s.appIcon }
-            if s.showInDock != showInDock { showInDock = s.showInDock }
-            if s.autoUpdate != autoUpdate { autoUpdate = s.autoUpdate }
-            if s.updateFeed != updateFeed { updateFeed = s.updateFeed }
-            if s.presets != presets { presets = s.presets }
-            if s.micOrder != micOrder { micOrder = s.micOrder }
-            if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
-            if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }
-            if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
-            if s.shortcuts != shortcuts { shortcuts = s.shortcuts }
-            if s.micName != micName { micName = s.micName }
-            if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { chooseInput(s.inputUID) }
-            applying = false
-            load(mics[inputUID] ?? MicProfile())
-            if (selectedInput ?? "") != inputUID { rebuild() }
-            if micOrder != s.micOrder { changed() }
+        let snapshot: SettingsStore.Snapshot
+        do { snapshot = try Settings.store.read() }
+        catch {
+            saveWork?.cancel(); saveWork = nil
+            configSnapshot = nil
+            configProblem = error.localizedDescription
+            return
         }
+        if let current = configSnapshot, snapshot.revision == current.revision { return }
+        saveWork?.cancel(); saveWork = nil
+        configSnapshot = snapshot
+        configProblem = nil
+        let s = snapshot.settings
+        guard s != settings else { return }
+        applying = true
+        mics = s.mics
+        if s.muted != muted { muted = s.muted }
+        if s.icon != icon { icon = s.icon }
+        if s.appIcon != appIcon { appIcon = s.appIcon }
+        if s.showInDock != showInDock { showInDock = s.showInDock }
+        if s.autoUpdate != autoUpdate { autoUpdate = s.autoUpdate }
+        if s.updateFeed != updateFeed { updateFeed = s.updateFeed }
+        if s.presets != presets { presets = s.presets }
+        if s.micOrder != micOrder { micOrder = s.micOrder }
+        if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
+        if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }
+        if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
+        if s.shortcuts != shortcuts { shortcuts = s.shortcuts }
+        if s.micName != micName { micName = s.micName }
+        if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { chooseInput(s.inputUID) }
+        applying = false
+        load(mics[inputUID] ?? MicProfile())
+        if (selectedInput ?? "") != inputUID { rebuild() }
+        if micOrder != s.micOrder { changed() }
     }
 
     func writeStatus() {

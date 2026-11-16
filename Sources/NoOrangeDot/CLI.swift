@@ -79,7 +79,7 @@ enum CLI {
         case "status":
             guard let s = try? String(contentsOf: Settings.statusFile, encoding: .utf8) else { return fail("The app hasn't written a status yet. Is it running?") }
             print(s); return 0
-        case "get": return edit { _ in }.flatMap { _ in printSettings() } ?? 1
+        case "get": return done(edit { _ in })
         case "record":
             guard let a = rest.first, a == "start" || a == "stop" || a == "toggle" else { return fail("Use: nod record start|stop|toggle") }
             Command.send("record-\(a)"); return settle()
@@ -463,16 +463,16 @@ enum CLI {
 
     /// Loads config.json, applies the change, and saves it. Refuses to touch a file that doesn't parse.
     private static func edit(_ change: (inout Settings) throws -> Void) -> Int32? {
-        var s: Settings
-        switch Settings.load() {
-        case .ok(let loaded): s = loaded
-        case .missing: s = Settings()
-        case .invalid(let why): return fail(why)
-        }
-        let before = s
-        do { try change(&s) } catch let e as Bad { return fail(e.message) } catch { return fail("\(error)") }
-        if s != before || Settings.modified() == nil { s.save() }
-        return 0
+        do {
+            let snapshot = try Settings.store.read()
+            var settings = snapshot.settings
+            try change(&settings)
+            if settings != snapshot.settings || snapshot.revision == nil {
+                _ = try Settings.store.save(settings, expecting: snapshot.revision)
+            }
+            return 0
+        } catch let error as Bad { return fail(error.message) }
+        catch { return fail(error.localizedDescription) }
     }
 
     private static func printSettings() -> Int32 {
