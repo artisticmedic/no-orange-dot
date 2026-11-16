@@ -27,12 +27,15 @@ struct MuteButtonStyle: ButtonStyle {
             .background(shape.fill(face.shadow(.inner(color: .black.opacity(0.6 * sunk), radius: 6 * sunk, y: 5 * sunk))))
             .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(depth > 0 ? 0 : 0.45), .clear], startPoint: .top, endPoint: .center), lineWidth: 1.5))
             .brightness(pressed ? -0.06 : 0)
+            // The face and its label are drawn as one picture, so the label cannot move apart from the face.
+            .drawingGroup()
             .offset(y: depth)
             .padding(.bottom, Self.travel)
             .background(shape.fill(Self.base).padding(.top, Self.travel))
             .contentShape(Rectangle())
-            // Down fast, back up on a spring with a small bounce.
-            .animation(pressed ? .easeOut(duration: 0.07) : .spring(response: 0.28, dampingFraction: 0.5), value: depth)
+            // Down fast, back up on a short spring. A spring picks up from wherever the face is, so quick
+            // repeated clicks carry on from the last one instead of restarting.
+            .animation(pressed ? .easeOut(duration: 0.05) : .spring(response: 0.2, dampingFraction: 0.58), value: depth)
     }
 }
 
@@ -43,7 +46,7 @@ struct MuteButton: View {
     var body: some View {
         Button(action: action) {
             // The icon and the first letter never move. Both icons and both words are laid out at once and
-            // only their opacity changes, so nothing is re-centred when the state flips and the label rides with the face.
+            // only their opacity changes, so nothing is re-centred when the state flips.
             HStack(spacing: 7) {
                 ZStack {
                     Image(systemName: "mic.fill").opacity(muted ? 0 : 1)
@@ -57,6 +60,8 @@ struct MuteButton: View {
             }
             // Centred for the shorter word, which is the one on screen most of the time.
             .offset(x: 3)
+            // The word and icon change at once, at the bottom of the press, instead of fading.
+            .transaction { $0.animation = nil }
         }
             .buttonStyle(MuteButtonStyle(muted: muted, showPressed: showPressed))
             .help(muted ? "Unmute the microphone" : "Mute the microphone")
