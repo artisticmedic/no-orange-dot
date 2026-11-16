@@ -21,7 +21,8 @@ struct Shortcut: Equatable {
         "f16": kVK_F16, "f17": kVK_F17, "f18": kVK_F18, "f19": kVK_F19,
     ]
 
-    /// Parses "ctrl+opt+cmd+m". Function keys may stand alone; any other key needs Control, Option or Command.
+    /// Parses "ctrl+opt+cmd+m". Function keys may stand alone; any other key needs Control or Command,
+    /// because Option and Shift alone type characters.
     init?(_ text: String) {
         var mods: UInt32 = 0, name: String?
         for part in text.lowercased().split(separator: "+").map({ $0.trimmingCharacters(in: .whitespaces) }) {
@@ -34,7 +35,7 @@ struct Shortcut: Equatable {
             }
         }
         guard let name, let code = Self.keys[name] else { return nil }
-        guard Self.isFunctionKey(name) || mods & UInt32(cmdKey | optionKey | controlKey) != 0 else { return nil }
+        guard Self.isFunctionKey(name) || mods & UInt32(cmdKey | controlKey) != 0 else { return nil }
         keyCode = UInt32(code); modifiers = mods; key = name
     }
 

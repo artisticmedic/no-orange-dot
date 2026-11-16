@@ -227,20 +227,20 @@ enum CLI {
                 var s = Settings()
                 if case .ok(let saved) = Settings.load() { s = saved }
                 for c in MenuCommand.all {
-                    let keys = c.id == MenuCommand.mute ? s.muteShortcut : c.id == MenuCommand.record ? s.recordShortcut : s.shortcuts[c.id] ?? ""
+                    let keys = s.shortcut(for: c.id)
                     print("\(c.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \((keys.isEmpty ? "-" : keys).padding(toLength: 18, withPad: " ", startingAt: 0)) \(c.menu): \(c.title)\(c.global ? " (any app)" : "")")
                 }
                 return 0
             }
             guard rest.count == 2, let command = MenuCommand.named(rest[0]) else { return fail("Use: nod shortcut <command> <keys>|off, for example nod shortcut mute ctrl+opt+cmd+m. nod shortcut list names the commands.") }
             let value = rest[1] == "off" ? "" : rest[1]
-            if !value.isEmpty, Shortcut(value) == nil { return fail("Can't read \"\(value)\". Use a key with ctrl, opt or cmd, for example ctrl+opt+cmd+m, or a function key such as f13.") }
+            if !value.isEmpty, Shortcut(value) == nil { return fail("Can't read \"\(value)\". Use a key with ctrl or cmd, for example ctrl+opt+cmd+m, or a function key such as f13.") }
             let text = Shortcut(value)?.text ?? ""
-            return done(edit {
-                if command.id == MenuCommand.mute { $0.muteShortcut = text }
-                else if command.id == MenuCommand.record { $0.recordShortcut = text }
-                else { $0.shortcuts[command.id] = text.isEmpty ? nil : text }
-            })
+            if let shortcut = Shortcut(value), case .ok(let saved) = Settings.load(), let holder = saved.holder(of: shortcut, except: command.id) {
+                return fail("\(shortcut.display) is already used by \(holder).")
+            }
+            if let shortcut = Shortcut(value), let standard = MenuCommand.reserved[shortcut.text] { return fail("\(shortcut.display) is already used by \(standard).") }
+            return done(edit { $0.setShortcut(text, for: command.id) })
         case "listen":
             guard let a = rest.first, a == "on" || a == "off" else { return fail("Use: nod listen on|off") }
             Command.send("listen-\(a)"); return settle()

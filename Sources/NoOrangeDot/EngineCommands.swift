@@ -17,9 +17,7 @@ extension Engine {
         set { UserDefaults.standard.set(newValue, forKey: heatMapKey) }
     }
 
-    func shortcut(for id: String) -> String {
-        id == MenuCommand.mute ? muteShortcut : id == MenuCommand.record ? recordShortcut : shortcuts[id] ?? ""
-    }
+    func shortcut(for id: String) -> String { settings.shortcut(for: id) }
 
     func setShortcut(_ text: String, for id: String) {
         if id == MenuCommand.mute { muteShortcut = text }
@@ -38,7 +36,6 @@ extension Engine {
 
     func removeSelectedBand() {
         guard let i = selectedBandIndex else { return }
-        selectedBand = nil
         bands.remove(at: i)
     }
 

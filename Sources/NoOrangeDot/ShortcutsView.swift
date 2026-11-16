@@ -41,7 +41,7 @@ struct ShortcutsCard: View {
 
     private func recorder(_ c: MenuCommand) -> some View {
         ShortcutButton(text: Binding(get: { engine.shortcut(for: c.id) }, set: { text in
-            if let s = Shortcut(text), let holder = MainMenu.current?.holder(of: s, except: c.id) {
+            if let s = Shortcut(text), let holder = engine.settings.holder(of: s, except: c.id) {
                 engine.error = "\(s.display) is already used by \(holder)."
                 return
             }

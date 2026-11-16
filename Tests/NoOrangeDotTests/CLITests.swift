@@ -99,6 +99,10 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try nod("shortcut", "gate", "off").code, 0)
         XCTAssertEqual((try settings()["shortcuts"] as? [String: String])?["gate"], nil)
         XCTAssertEqual(try nod("shortcut", "nonsense", "ctrl+opt+g").code, 1)
+        XCTAssertEqual(try nod("shortcut", "gate", "cmd+q").code, 1, "Quit keeps its keys")
+        XCTAssertEqual(try nod("shortcut", "gate", "ctrl+opt+g").code, 0)
+        XCTAssertEqual(try nod("shortcut", "limiter", "ctrl+opt+g").code, 1, "two commands cannot share keys")
+        XCTAssertEqual(try nod("shortcut", "gate", "opt+g").code, 1, "Option alone types a character")
         XCTAssertEqual(try nod("shortcut", "list").code, 0)
     }
 

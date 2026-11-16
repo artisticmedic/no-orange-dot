@@ -2,10 +2,17 @@ import AppKit
 import SwiftUI
 
 extension Notification.Name {
-    /// Sent with a tab's name to show that page of the window.
     static let showTab = Notification.Name("NoOrangeDot.showTab")
     static let focusMicName = Notification.Name("NoOrangeDot.focusMicName")
     static let cliToolChanged = Notification.Name("NoOrangeDot.cliToolChanged")
+}
+
+/// What the menus asked the window to show. A window that is open takes it when the notification
+/// arrives; one that is only now being made takes it when its views appear.
+@MainActor
+enum EditorRequest {
+    static var tab: EditorTab?
+    static var focusMicName = false
 }
 
 /// A menu item that runs a closure and reads its tick, title and availability each time its menu opens.
@@ -38,8 +45,6 @@ final class ActionItem: NSMenuItem, NSMenuItemValidation {
 /// Settings, and the Edit menu); every other shortcut is one the user set.
 @MainActor
 final class MainMenu: NSObject, NSMenuDelegate {
-    static weak var current: MainMenu?
-
     private let engine: Engine
     private let openEditor: () -> Void
     private let inputs = NSMenu(title: "Input"), presets = NSMenu(title: "Presets"), replace = NSMenu(title: "Replace Preset"),
@@ -50,16 +55,16 @@ final class MainMenu: NSObject, NSMenuDelegate {
     init(engine: Engine, openEditor: @escaping () -> Void) {
         self.engine = engine; self.openEditor = openEditor
         super.init()
-        Self.current = self
     }
 
     private static var editingText: NSText? { NSApp.keyWindow?.firstResponder as? NSText }
 
-    private func show(_ tab: EditorTab, then name: Notification.Name? = nil) {
+    private func show(_ tab: EditorTab, focusMicName: Bool = false) {
+        EditorRequest.tab = tab
+        EditorRequest.focusMicName = focusMicName
         openEditor()
-        // A window that is only now being made is not listening yet.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { NotificationCenter.default.post(name: .showTab, object: tab.rawValue) }
-        if let name { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { NotificationCenter.default.post(name: name, object: nil) } }
+        NotificationCenter.default.post(name: .showTab, object: nil)
+        if focusMicName { NotificationCenter.default.post(name: .focusMicName, object: nil) }
     }
 
     private func cmd(_ id: String, _ title: String? = nil, on: (() -> Bool)? = nil, title live: (() -> String)? = nil,
@@ -109,7 +114,13 @@ final class MainMenu: NSObject, NSMenuDelegate {
             ]),
             sub("Command Line Tool", NSMenu(title: "Command Line Tool"), [
                 ActionItem("Install", title: { CLITool.state == .notInstalled ? "Install" : "Replace" }) { Self.cliTool(CLITool.install) },
-                ActionItem("Test", when: { CLITool.state != .notInstalled }) { Self.report(CLITool.test().message) },
+                ActionItem("Test", when: { CLITool.state != .notInstalled }) {
+                    // The test starts a login shell and can take seconds.
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let result = CLITool.test()
+                        DispatchQueue.main.async { Self.report(result.message) }
+                    }
+                },
                 ActionItem("Remove", when: { CLITool.state != .notInstalled }) { Self.cliTool(CLITool.remove) },
                 .separator(),
                 ActionItem("Copy Path") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(CLITool.link, forType: .string) },
@@ -156,11 +167,11 @@ final class MainMenu: NSObject, NSMenuDelegate {
             sub("Input", inputs),
             cmd("system-mic", on: { e.isSystemMicrophone }, when: driver) { e.setSystemMicrophone(!e.isSystemMicrophone) },
             .separator(),
-            cmd("gain-up", when: { e.micGain != nil }) { if let g = e.micGain { e.setMicGain(g.db + 1) } },
-            cmd("gain-down", when: { e.micGain != nil }) { if let g = e.micGain { e.setMicGain(g.db - 1) } },
+            cmd("gain-up", when: { e.micGain != nil }) { e.refreshMicGain(); if let g = e.micGain { e.setMicGain(g.db + 1) } },
+            cmd("gain-down", when: { e.micGain != nil }) { e.refreshMicGain(); if let g = e.micGain { e.setMicGain(g.db - 1) } },
             cmd("gain-lock", on: { e.gainLockDB != nil }, when: { e.micGain != nil }) { e.setGainLock(e.gainLockDB == nil) },
             .separator(),
-            cmd("rename-mic", when: { e.canRenameMic }) { [weak self] in self?.show(.settings, then: .focusMicName) },
+            cmd("rename-mic", when: { e.canRenameMic }) { [weak self] in self?.show(.settings, focusMicName: true) },
         ])
 
         let compressor = NSMenu(title: "Compressor Setting")
@@ -212,16 +223,20 @@ final class MainMenu: NSObject, NSMenuDelegate {
             cmd(MenuCommand.record, "Start Recording", title: { e.recording ? "Stop Recording" : "Start Recording" }, when: driver) { e.toggleRecording() },
             .separator(),
             cmd("play-last") { [weak self] in
-                guard let r = e.loadRecordings().first else { e.error = "There are no recordings to play yet."; return }
-                self?.show(.recordings)
-                e.play(r)
+                e.withRecordings { list in
+                    guard let r = list.first else { e.error = "There are no recordings to play yet."; return }
+                    self?.show(.recordings)
+                    e.play(r)
+                }
             },
             sub("Play", play),
             cmd("stop-playing", when: { e.auditioning != nil || Playback.shared.playing != nil }) { e.stopPlaying() },
-            cmd("loop", on: { e.auditionLoop }) { e.auditionLoop.toggle() },
+            cmd("loop", on: { e.auditionLoop }, when: { Playback.shared.playing == nil }) { e.auditionLoop.toggle() },
             .separator(),
             cmd("reveal-last") {
-                if let r = e.loadRecordings().first { NSWorkspace.shared.activateFileViewerSelecting([r.url]) } else { e.error = "There are no recordings to show yet." }
+                e.withRecordings { list in
+                    if let r = list.first { NSWorkspace.shared.activateFileViewerSelecting([r.url]) } else { e.error = "There are no recordings to show yet." }
+                }
             },
             cmd("open-folder") { NSWorkspace.shared.open(e.recordingsURL) },
             cmd("choose-folder") { e.chooseRecordingsFolder() },
@@ -253,7 +268,10 @@ final class MainMenu: NSObject, NSMenuDelegate {
         applied = now
         presets.removeAllItems()
         for (i, preset) in e.presets.enumerated() {
-            let item = ActionItem(preset.name, on: { e.currentPreset?.id == preset.id }) { e.use(preset) }
+            // By position, read when used: a preset replaced under the same name keeps its place and its title.
+            let item = ActionItem(preset.name, on: { e.presets.indices.contains(i) && e.currentPreset?.id == e.presets[i].id }) {
+                if e.presets.indices.contains(i) { e.use(e.presets[i]) }
+            }
             if i < 9 { items["preset-\(i + 1)"] = item }
             presets.addItem(item)
         }
@@ -266,21 +284,8 @@ final class MainMenu: NSObject, NSMenuDelegate {
         }
     }
 
-    func holder(of shortcut: Shortcut, except id: String) -> String? {
-        for c in MenuCommand.all where c.id != id && Shortcut(engine.shortcut(for: c.id)) == shortcut { return c.title }
-        let ours = Set(items.values.map(ObjectIdentifier.init))
-        func search(_ menu: NSMenu) -> String? {
-            for item in menu.items {
-                if let found = item.submenu.flatMap(search) { return found }
-                guard !ours.contains(ObjectIdentifier(item)), !item.keyEquivalent.isEmpty else { continue }
-                var mods = item.keyEquivalentModifierMask.intersection([.command, .option, .control, .shift])
-                if item.keyEquivalent != item.keyEquivalent.lowercased() { mods.insert(.shift) }
-                if item.keyEquivalent.lowercased() == shortcut.menuKey, mods == shortcut.menuModifiers { return item.title }
-            }
-            return nil
-        }
-        return NSApp.mainMenu.flatMap(search)
-    }
+    /// Without this, AppKit fills every changing list on each key press to look for a shortcut. None of them has one.
+    func menuHasKeyEquivalent(_ menu: NSMenu, for event: NSEvent, target: AutoreleasingUnsafeMutablePointer<AnyObject?>, action: UnsafeMutablePointer<Selector?>) -> Bool { false }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         let e = engine
@@ -303,7 +308,9 @@ final class MainMenu: NSObject, NSMenuDelegate {
             }
             if e.history.isEmpty { none("No earlier curves yet") }
         } else if menu === play {
-            for r in e.loadRecordings().prefix(12) {
+            // The list as last read. Reading the folder again here would block the menu on every file in it.
+            e.refreshRecordings()
+            for r in e.recordings.prefix(12) {
                 menu.addItem(ActionItem("\(Recording.friendly(r.date))  ·  \(Recording.clock(r.seconds))") { [weak self] in self?.show(.recordings); e.play(r) })
             }
             if e.recordings.isEmpty { none("No recordings yet") }

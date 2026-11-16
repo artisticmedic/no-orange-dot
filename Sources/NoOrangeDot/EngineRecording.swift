@@ -86,17 +86,18 @@ extension Engine {
 
     var recordingsURL: URL { var s = Settings(); s.recordingsFolder = recordingsFolder; return s.recordingsURL }
 
-    /// Reads the folder now, for a command that needs the list before it can act.
-    @discardableResult func loadRecordings() -> [Recording] {
-        recordings = Recording.list(in: recordingsURL)
-        return recordings
-    }
+    func refreshRecordings() { withRecordings { _ in } }
 
-    func refreshRecordings() {
+    /// Reads the folder off the main thread, then hands over the fresh list.
+    func withRecordings(_ then: @escaping ([Recording]) -> Void) {
         let folder = recordingsURL
         DispatchQueue.global(qos: .userInitiated).async {
             let list = Recording.list(in: folder)
-            DispatchQueue.main.async { [weak self] in if self?.recordingsURL == folder { self?.recordings = list } }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.recordingsURL == folder else { return }
+                self.recordings = list
+                then(list)
+            }
         }
     }
 }

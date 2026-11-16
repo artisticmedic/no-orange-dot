@@ -351,9 +351,12 @@ struct EditorView: View {
         }
         .frame(minWidth: 860, minHeight: 560)
         .ignoresSafeArea()
-        .onReceive(NotificationCenter.default.publisher(for: .showTab)) { note in
-            if let name = note.object as? String, let wanted = EditorTab(rawValue: name) { tab = wanted }
-        }
+        .onAppear { takeRequest() }
+        .onReceive(NotificationCenter.default.publisher(for: .showTab)) { _ in takeRequest() }
+    }
+
+    private func takeRequest() {
+        if let wanted = EditorRequest.tab { tab = wanted; EditorRequest.tab = nil }
     }
 
     // MARK: Sidebar
@@ -830,7 +833,14 @@ struct MicNameRow: View {
             }
             .disabled(!engine.canRenameMic)
         }
-        .onAppear { draft = engine.micName.isEmpty ? engine.micDisplayName : engine.micName }
-        .onReceive(NotificationCenter.default.publisher(for: .focusMicName)) { _ in editing = true }
+        .onAppear { draft = engine.micName.isEmpty ? engine.micDisplayName : engine.micName; takeFocus() }
+        .onReceive(NotificationCenter.default.publisher(for: .focusMicName)) { _ in takeFocus() }
+    }
+
+    private func takeFocus() {
+        guard EditorRequest.focusMicName else { return }
+        EditorRequest.focusMicName = false
+        // A field that has only now appeared cannot take the keyboard until the next pass.
+        DispatchQueue.main.async { editing = true }
     }
 }

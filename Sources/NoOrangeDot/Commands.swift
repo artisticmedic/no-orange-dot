@@ -65,6 +65,10 @@ struct MenuCommand: Identifiable, Equatable {
         MenuCommand(id: "show-in-dock", menu: "App", title: "Show in Dock"),
     ]
 
+    /// The standard Mac shortcuts the menus keep. A user's shortcut may not reuse them.
+    static let reserved = ["cmd+q": "Quit", "cmd+h": "Hide", "opt+cmd+h": "Hide Others", "cmd+w": "Close", "cmd+m": "Minimize",
+                           "cmd+z": "Undo", "shift+cmd+z": "Redo", "cmd+x": "Cut", "cmd+c": "Copy", "cmd+v": "Paste", "cmd+a": "Select All"]
+
     static let menus = ["Microphone", "Sound", "Band", "Recordings", "View", "App"]
     static func named(_ id: String) -> MenuCommand? { all.first { $0.id == id } }
 }

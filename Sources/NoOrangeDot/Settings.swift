@@ -115,6 +115,22 @@ struct Settings: Codable, Equatable {
     /// Saved sounds, in the order they are listed.
     var presets: [SoundPreset] = []
 
+    func shortcut(for id: String) -> String {
+        id == MenuCommand.mute ? muteShortcut : id == MenuCommand.record ? recordShortcut : shortcuts[id] ?? ""
+    }
+
+    mutating func setShortcut(_ text: String, for id: String) {
+        if id == MenuCommand.mute { muteShortcut = text }
+        else if id == MenuCommand.record { recordShortcut = text }
+        else { shortcuts[id] = text.isEmpty ? nil : text }
+    }
+
+    /// The name of whatever already uses these keys, other than the command being set.
+    func holder(of shortcut: Shortcut, except id: String) -> String? {
+        if let standard = MenuCommand.reserved[shortcut.text] { return standard }
+        return MenuCommand.all.first { $0.id != id && Shortcut(self.shortcut(for: $0.id)) == shortcut }?.title
+    }
+
     /// The sound for the microphone in use.
     var active: MicProfile {
         get { mics[inputUID] ?? MicProfile() }

@@ -40,7 +40,13 @@ final class Engine: ObservableObject {
     var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
     var mics: [String: MicProfile] = [:]
-    @Published var bands: [Band] { didSet { noteHistory(oldValue); pushDSP(); changed() } }
+    @Published var bands: [Band] {
+        didSet {
+            // The built-in curves reuse their band IDs, so a selection left behind would come back with them.
+            if let id = selectedBand, !bands.contains(where: { $0.id == id }) { selectedBand = nil }
+            noteHistory(oldValue); pushDSP(); changed()
+        }
+    }
     @Published var dynamics: Dynamics { didSet { pushDSP(); changed() } }
     @Published var bypass: Bool { didSet { pushDSP(); changed() } }
     @Published var outputGainDB: Double { didSet { pushDSP(); changed() } }

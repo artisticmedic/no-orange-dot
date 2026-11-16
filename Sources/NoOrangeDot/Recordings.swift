@@ -115,9 +115,7 @@ struct RecordingsView: View {
                    caption: "\(Recording.clock(r.seconds))  ·  \(r.url.lastPathComponent)\(throughEQ ? "  ·  plays through the EQ" : "")") {
             HStack(spacing: 2) {
                 IconButton(symbol: isPlaying ? "stop.fill" : "play.fill", label: isPlaying ? "Stop" : throughEQ ? "Play through the EQ" : "Play") {
-                    playback.stop()
-                    if throughEQ { if isPlaying { engine.stopAudition() } else { engine.startAudition(r) } }
-                    else { engine.stopAudition(); if !isPlaying { playback.toggle(r.url) } }
+                    if isPlaying { engine.stopPlaying() } else { engine.play(r) }
                 }
                 IconButton(symbol: "folder", label: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([r.url]) }
                 IconButton(symbol: "trash", label: "Move to Trash") {
