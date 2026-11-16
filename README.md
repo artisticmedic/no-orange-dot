@@ -58,7 +58,7 @@ nod shortcut mute ctrl+opt+cmd+m
 nod history restore 1
 ```
 
-If the chosen microphone is unplugged, another input stands in until it comes back.
+Microphones are kept in an order of preference under Settings → Mic order, and the app uses the first one that is plugged in. Choosing a microphone puts it first. `nod mics` lists the order and `nod mics move <name> <place>` changes it.
 
 ## Requirements
 

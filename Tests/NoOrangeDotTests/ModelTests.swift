@@ -54,4 +54,25 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(s.summary, "5 bands · low shelf +2.9, bell -3.0, high shelf +2.8")
         XCTAssertEqual(EQSnapshot(date: Date(), mic: "Mic", bands: [Band(type: .bell, freq: 1000, gainDB: 0, q: 1)]).summary, "1 band")
     }
+
+    func testChoosingAMicPutsItFirst() {
+        var s = Settings()
+        s.micOrder = ["a", "b", "c"]
+        s.prefer("c")
+        XCTAssertEqual(s.inputUID, "c")
+        XCTAssertEqual(s.micOrder, ["c", "a", "b"])
+        s.moveMic("c", to: 2)
+        XCTAssertEqual(s.micOrder, ["a", "c", "b"])
+        s.moveMic("a", to: 99)
+        XCTAssertEqual(s.micOrder, ["c", "b", "a"])
+    }
+
+    func testMicOrderComesFromAnOlderFile() throws {
+        let standIn = try JSONDecoder().decode(Settings.self, from: Data(#"{"inputUID":"builtin","returnToUID":"xlr"}"#.utf8))
+        XCTAssertEqual(standIn.micOrder, ["xlr", "builtin"], "the chosen mic outranks the one standing in for it")
+        let plain = try JSONDecoder().decode(Settings.self, from: Data(#"{"inputUID":"xlr"}"#.utf8))
+        XCTAssertEqual(plain.micOrder, ["xlr"])
+        let kept = try JSONDecoder().decode(Settings.self, from: Data(#"{"inputUID":"b","micOrder":["a","b"]}"#.utf8))
+        XCTAssertEqual(kept.micOrder, ["a", "b"])
+    }
 }

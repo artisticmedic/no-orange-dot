@@ -40,7 +40,8 @@ enum CLI {
       nod auto-eq file <audio> [target=warm|neutral|bright] [strength=1] [apply] [out=<wav>] [curves]
                                          work out an EQ from a recording of speech
       nod input list | nod input <name>
-      nod mics                           microphones that have a saved sound
+      nod mics                           microphones in order of preference. The app uses the first one plugged in.
+      nod mics move <name> <place>       move a microphone to a place in that order, counted from 1
       nod output <dB>
       nod play <name> | nod play stop    replay a recording's raw take through the current EQ, looped
       nod name [<text>|reset]            show or change the name apps see for the mic
@@ -215,8 +216,20 @@ enum CLI {
         case "mics":
             guard case .ok(let s) = Settings.load() else { return fail("No settings file yet.") }
             let names = Dictionary(HAL.inputDevices().map { ($0.uid, $0.name) }, uniquingKeysWith: { a, _ in a })
-            for (uid, p) in s.mics.sorted(by: { $0.key < $1.key }) {
-                print("\(uid == s.inputUID ? "*" : " ") \(names[uid] ?? (p.name.isEmpty ? uid : p.name))  (\(p.bands.filter(\.on).count) bands\(p.dynamics.gateOn ? ", gate" : "")\(p.dynamics.compOn ? ", compressor" : ""))")
+            func name(_ uid: String) -> String { names[uid] ?? s.mics[uid].map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? uid }
+            if rest.first == "move" {
+                guard rest.count >= 3, let place = Int(rest.last!), place >= 1 else { return fail("Use: nod mics move <name> <place>") }
+                let want = rest[1..<(rest.count - 1)].joined(separator: " ").lowercased()
+                let listed = s.micOrder + s.mics.keys.sorted().filter { !s.micOrder.contains($0) }
+                guard let uid = listed.first(where: { name($0).lowercased() == want }) ?? listed.first(where: { name($0).lowercased().contains(want) }) else {
+                    return fail("No microphone matches \"\(want)\". Try: nod mics")
+                }
+                guard edit({ $0.moveMic(uid, to: place) }) == 0 else { return 1 }
+                return run(["mics"])
+            }
+            for (i, uid) in (s.micOrder + s.mics.keys.sorted().filter { !s.micOrder.contains($0) }).enumerated() {
+                let sound = s.mics[uid].map { p in "  (\(p.bands.filter(\.on).count) bands\(p.dynamics.gateOn ? ", gate" : "")\(p.dynamics.compOn ? ", compressor" : ""))" } ?? ""
+                print("\(uid == s.inputUID ? "*" : " ") \(i + 1). \(name(uid))\(names[uid] == nil ? "  (not plugged in)" : "")\(sound)")
             }
             return 0
         case "system":
@@ -331,7 +344,7 @@ enum CLI {
             guard let d = devices.first(where: { $0.name.lowercased() == want }) ?? devices.first(where: { $0.name.lowercased().contains(want) }) else {
                 return fail("No microphone matches \"\(rest.joined(separator: " "))\". Try: nod input list")
             }
-            return done(edit { $0.inputUID = d.uid })
+            return done(edit { $0.prefer(d.uid) })
         default: break
         }
 

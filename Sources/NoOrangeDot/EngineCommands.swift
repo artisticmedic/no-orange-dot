@@ -11,6 +11,18 @@ extension Band {
 }
 
 extension Engine {
+    /// The highest microphone in the order that is plugged in.
+    var preferredInput: String? { micOrder.first { uid in inputs.contains { $0.uid == uid } } }
+
+    func micName(for uid: String) -> String? { inputs.first { $0.uid == uid }?.name ?? mics[uid].map(\.name).flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// Swaps a microphone with the listed one above or below it, then switches if a different one now comes first.
+    func moveMic(_ uid: String, past other: String) {
+        guard let a = micOrder.firstIndex(of: uid), let b = micOrder.firstIndex(of: other) else { return }
+        micOrder.swapAt(a, b)
+        if preferredInput != inputUID { rebuild() }
+    }
+
     static let heatMapKey = "heatMap"
     static var heatMap: Bool {
         get { UserDefaults.standard.object(forKey: heatMapKey) as? Bool ?? true }

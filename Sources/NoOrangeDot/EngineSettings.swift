@@ -17,7 +17,7 @@ extension Engine {
 
     var settings: Settings {
         var s = Settings()
-        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.returnToUID = returnTo ?? ""; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut; s.shortcuts = shortcuts
+        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.micOrder = micOrder; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut; s.shortcuts = shortcuts
         s.mics = mics
         s.presets = presets
         if !inputUID.isEmpty { s.mics[inputUID] = activeProfile }
@@ -129,7 +129,7 @@ extension Engine {
             if s.autoUpdate != autoUpdate { autoUpdate = s.autoUpdate }
             if s.updateFeed != updateFeed { updateFeed = s.updateFeed }
             if s.presets != presets { presets = s.presets }
-            if s.returnToUID != (returnTo ?? "") { returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID }
+            if s.micOrder != micOrder { micOrder = s.micOrder }
             if s.recordingsFolder != recordingsFolder { recordingsFolder = s.recordingsFolder }
             if s.muteShortcut != muteShortcut { muteShortcut = s.muteShortcut }
             if s.recordShortcut != recordShortcut { recordShortcut = s.recordShortcut }
@@ -138,6 +138,8 @@ extension Engine {
             if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { inputUID = s.inputUID }
             applying = false
             load(mics[inputUID] ?? MicProfile())
+            if preferredInput != inputUID { rebuild() }
+            if micOrder != s.micOrder { changed() }
         }
     }
 

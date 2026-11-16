@@ -30,12 +30,12 @@ final class Engine: ObservableObject {
     @Published var inputUID: String {
         didSet {
             guard inputUID != oldValue else { return }
-            if !fallingBack { returnTo = nil }
+            if !fallingBack { micOrder = [inputUID] + micOrder.filter { $0 != inputUID } }
             switchProfile(from: oldValue); rebuild(); changed()
         }
     }
-    /// The chosen microphone when it has been unplugged and another stands in. Plugging it back in returns to it.
-    var returnTo: String? { didSet { if returnTo != oldValue { changed() } } }
+    /// Microphones from most to least preferred. The first one that is plugged in is the one in use.
+    @Published var micOrder: [String] = [] { didSet { if micOrder != oldValue { changed() } } }
     var fallingBack = false
     var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
@@ -166,7 +166,7 @@ final class Engine: ObservableObject {
         autoUpdate = s.autoUpdate
         updateFeed = s.updateFeed
         presets = s.presets
-        returnTo = s.returnToUID.isEmpty ? nil : s.returnToUID
+        micOrder = s.micOrder
         historyUID = s.inputUID
         recordingsFolder = s.recordingsFolder
         muteShortcut = s.muteShortcut
@@ -245,18 +245,12 @@ final class Engine: ObservableObject {
         teardown()
         deviceSignature = currentSignature()
         inputs = HAL.inputDevices()
-        if let back = returnTo, back != inputUID, inputs.contains(where: { $0.uid == back }) {
+        var unranked = inputs.map(\.uid).filter { !micOrder.contains($0) }
+        if micOrder.isEmpty, let i = unranked.firstIndex(of: HAL.defaultInputUID() ?? "") { unranked.insert(unranked.remove(at: i), at: 0) }
+        if !unranked.isEmpty { micOrder += unranked }
+        if let pick = preferredInput, pick != inputUID {
             fallingBack = true; defer { fallingBack = false }
-            returnTo = nil; inputUID = back; return // didSet re-enters rebuild
-        }
-        if inputUID.isEmpty || !inputs.contains(where: { $0.uid == inputUID }) {
-            let preferred = HAL.defaultInputUID()
-            let pick = inputs.first(where: { $0.uid == preferred }) ?? inputs.first
-            if let pick, pick.uid != inputUID {
-                fallingBack = true; defer { fallingBack = false }
-                if !inputUID.isEmpty { returnTo = returnTo ?? inputUID }
-                inputUID = pick.uid; return // didSet re-enters rebuild
-            }
+            inputUID = pick; return // didSet re-enters rebuild
         }
         micDevice = HAL.device(uid: Brand.micUID)
         let feed = HAL.device(uid: Brand.feedUID)

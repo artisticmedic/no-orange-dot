@@ -504,6 +504,7 @@ struct EditorView: View {
                     RecordingsView()
                 case .settings:
                     VStack(spacing: 8) { SectionLabel(text: "Microphone"); general }
+                    VStack(spacing: 8) { SectionLabel(text: "Mic order"); MicOrderCard() }
                     VStack(spacing: 8) { SectionLabel(text: "Shortcuts"); shortcuts }
                     VStack(spacing: 8) { SectionLabel(text: "App"); app }
                     VStack(spacing: 8) { SectionLabel(text: "Updates"); updates }
@@ -570,7 +571,7 @@ struct EditorView: View {
         Card {
             MicNameRow()
             RowDivider()
-            Row(title: "Real microphone", caption: "The mic this app opens. EQ and dynamics are saved per mic.") {
+            Row(title: "Real microphone", caption: "The mic this app opens. EQ and dynamics are saved per mic. Choosing one puts it first in the mic order.") {
                 Menu {
                     ForEach(engine.inputs) { input in
                         Button { engine.inputUID = input.uid } label: {

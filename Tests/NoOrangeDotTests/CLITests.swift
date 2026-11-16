@@ -106,6 +106,16 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try nod("shortcut", "list").code, 0)
     }
 
+    func testMicOrder() throws {
+        let file = #"{"inputUID":"a","micOrder":["a","b"],"mics":{"a":{"name":"Desk Mic"},"b":{"name":"Laptop Mic"}}}"#
+        try Data(file.utf8).write(to: config)
+        XCTAssertEqual(try nod("mics", "move", "laptop", "1").code, 0)
+        XCTAssertEqual(try settings()["micOrder"] as? [String], ["b", "a"])
+        XCTAssertTrue(try nod("mics").out.contains("1. Laptop Mic"))
+        XCTAssertEqual(try nod("mics", "move", "nonsense", "1").code, 1)
+        XCTAssertEqual(try nod("mics", "move", "laptop", "0").code, 1)
+    }
+
     func testABrokenSettingsFileIsLeftAlone() throws {
         let junk = Data("{ not json".utf8)
         try junk.write(to: config)
