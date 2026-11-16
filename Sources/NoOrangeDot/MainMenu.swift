@@ -44,6 +44,9 @@ final class MainMenu: NSObject, NSMenuDelegate {
         super.init()
     }
 
+    /// The text being typed into, when the keyboard is in a text field.
+    private static var editingText: NSText? { NSApp.keyWindow?.firstResponder as? NSText }
+
     private func show(_ tab: EditorTab) {
         openEditor()
         // A window that is only now being made is not listening yet.
@@ -84,7 +87,11 @@ final class MainMenu: NSObject, NSMenuDelegate {
         ])
 
         add("Edit", [
-            NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"),
+            // In a text field this undoes typing. Anywhere else it brings back the curve from before the last EQ change.
+            ActionItem("Undo", key: "z", title: { Self.editingText != nil ? "Undo" : "Undo EQ Change" },
+                       when: { Self.editingText?.undoManager?.canUndo ?? !e.history.isEmpty }) {
+                if let text = Self.editingText { text.undoManager?.undo() } else if let last = e.history.first { e.restore(last) }
+            },
             NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"),
             .separator(),
             NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
@@ -128,7 +135,8 @@ final class MainMenu: NSObject, NSMenuDelegate {
         for p in DynamicsView.compPresets { compressor.addItem(ActionItem(p.name) { p.apply(&e.dynamics) }) }
         add("Sound", [
             ActionItem("Equalizer", key: "e", on: { !e.bypass }) { e.bypass.toggle() },
-            ActionItem("Add Band", key: "b", mods: [.command, .shift]) { [weak self] in
+            ActionItem("Add Band", key: "b", mods: [.command, .shift], when: { e.bands.count < DSPChain.maxBands }) { [weak self] in
+                guard e.bands.count < DSPChain.maxBands else { return }
                 self?.show(.sound)
                 e.bands.append(Band(type: .bell, freq: 1000, gainDB: 0, q: 1))
             },
@@ -204,6 +212,15 @@ final class MainMenu: NSObject, NSMenuDelegate {
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespaces)
-        if !name.isEmpty { engine.savePreset(named: name) }
+        guard !name.isEmpty else { return }
+        if let i = engine.presets.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            let confirm = NSAlert()
+            confirm.messageText = "Replace the preset “\(engine.presets[i].name)”?"
+            confirm.informativeText = "A preset with this name exists. Saving replaces it with the current sound."
+            confirm.addButton(withTitle: "Replace")
+            confirm.addButton(withTitle: "Cancel")
+            guard confirm.runModal() == .alertFirstButtonReturn else { return }
+        }
+        engine.savePreset(named: name)
     }
 }
