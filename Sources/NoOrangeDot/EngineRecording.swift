@@ -84,8 +84,10 @@ extension Engine {
         // With the audio stopped nothing can still be writing, so close now: the app may be quitting.
         guard running else { close(); announceSaved(url); return }
         // Otherwise give the audio thread time to finish the block it may be writing.
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+        pendingCloses.enter()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { [pendingCloses] in
             close()
+            pendingCloses.leave()
             DispatchQueue.main.async { [weak self] in self?.announceSaved(url) }
         }
     }

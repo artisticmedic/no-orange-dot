@@ -93,6 +93,8 @@ final class Engine: ObservableObject {
     @Published var justSaved: Recording?
     var recordedBefore: TimeInterval = 0
     var shuttingDown = false
+    /// Recording files still waiting to be closed. Quitting waits for them.
+    let pendingCloses = DispatchGroup()
     var recordSegmentStart: Date?
     let player = AuditionPlayer()
 
@@ -342,7 +344,12 @@ final class Engine: ObservableObject {
     }
 
     /// Stops the audio first, so the recording files can be closed before the app exits.
-    func shutdown() { shuttingDown = true; stop(); stopRecording(); teardown() }
+    func shutdown() {
+        shuttingDown = true
+        stop(); stopRecording()
+        pendingCloses.wait()
+        teardown()
+    }
 
     // MARK: The name apps see
 
