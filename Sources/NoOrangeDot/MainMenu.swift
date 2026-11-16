@@ -69,7 +69,8 @@ final class MainMenu: NSObject, NSMenuDelegate {
     /// A command from the list in Commands.swift, which gives it its name and lets the user set its shortcut.
     private func cmd(_ id: String, _ title: String? = nil, on: (() -> Bool)? = nil, title live: (() -> String)? = nil,
                      when: (() -> Bool)? = nil, run: @escaping () -> Void) -> NSMenuItem {
-        let item = ActionItem(title ?? MenuCommand.named(id)?.title ?? id, on: on, title: live, when: when, run: run)
+        guard let command = MenuCommand.named(id) else { fatalError("\(id) is missing from MenuCommand.all") }
+        let item = ActionItem(title ?? command.title, on: on, title: live, when: when, run: run)
         items[id] = item
         return item
     }
