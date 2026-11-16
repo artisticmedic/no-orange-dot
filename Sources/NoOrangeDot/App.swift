@@ -260,7 +260,6 @@ struct SliderRow: View {
     }
 }
 
-/// Listen and Record in the window's top bar. Tinted while they are on.
 struct TopBarButtonStyle: ButtonStyle {
     var active: Bool
     var tint: Color

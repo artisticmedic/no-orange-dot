@@ -1,8 +1,6 @@
 import SwiftUI
 
-/// The big red Mute button at the top of the sidebar: a raised key on a darker base, which latches
-/// like a push switch. A press takes the face all the way down. Released, it rises part of the way and
-/// stays there while muted. The next press takes it down the rest of the way, and it comes back to the top.
+/// The big red Mute button at the top of the sidebar: a raised key on a darker base, which latches like a push switch.
 struct MuteButtonStyle: ButtonStyle {
     var muted: Bool
     /// Draws the held-down state without a pointer, for the render mode.
@@ -17,7 +15,7 @@ struct MuteButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed || showPressed
         let depth = pressed ? Self.travel : muted ? Self.latched : 0
-        let sunk = depth / Self.travel   // 0 at the top, 1 at the bottom
+        let sunk = depth / Self.travel
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         let face = LinearGradient(colors: depth > 0 ? [Self.deep, Self.red] : [Self.light, Self.red], startPoint: .top, endPoint: .bottom)
         return configuration.label
@@ -69,7 +67,6 @@ struct MuteButton: View {
     }
 }
 
-/// The button's three states side by side, for the render mode.
 struct MuteButtonSheet: View {
     var body: some View {
         HStack(alignment: .top, spacing: 24) {

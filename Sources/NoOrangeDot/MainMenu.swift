@@ -4,9 +4,7 @@ import SwiftUI
 extension Notification.Name {
     /// Sent with a tab's name to show that page of the window.
     static let showTab = Notification.Name("NoOrangeDot.showTab")
-    /// Puts the keyboard in the field that renames the mic.
     static let focusMicName = Notification.Name("NoOrangeDot.focusMicName")
-    /// The command line tool was installed or removed from the menus.
     static let cliToolChanged = Notification.Name("NoOrangeDot.cliToolChanged")
 }
 
@@ -46,7 +44,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
     private let openEditor: () -> Void
     private let inputs = NSMenu(title: "Input"), presets = NSMenu(title: "Presets"), replace = NSMenu(title: "Replace Preset"),
                 delete = NSMenu(title: "Delete Preset"), curves = NSMenu(title: "Earlier Curves"), play = NSMenu(title: "Play")
-    /// Items that can carry a user's shortcut, by command ID.
     private var items: [String: NSMenuItem] = [:]
     private var applied: [String] = ["\u{0}"]
 
@@ -56,7 +53,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
         Self.current = self
     }
 
-    /// The text being typed into, when the keyboard is in a text field.
     private static var editingText: NSText? { NSApp.keyWindow?.firstResponder as? NSText }
 
     private func show(_ tab: EditorTab, then name: Notification.Name? = nil) {
@@ -66,7 +62,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
         if let name { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { NotificationCenter.default.post(name: name, object: nil) } }
     }
 
-    /// A command from the list in Commands.swift, which gives it its name and lets the user set its shortcut.
     private func cmd(_ id: String, _ title: String? = nil, on: (() -> Bool)? = nil, title live: (() -> String)? = nil,
                      when: (() -> Bool)? = nil, run: @escaping () -> Void) -> NSMenuItem {
         guard let command = MenuCommand.named(id) else { fatalError("\(id) is missing from MenuCommand.all") }
@@ -130,7 +125,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
         ])
 
         add("Edit", [
-            // In a text field this undoes typing. Anywhere else it brings back the curve from before the last EQ change.
             ActionItem("Undo", key: "z", title: { Self.editingText != nil ? "Undo" : "Undo EQ Change" },
                        when: { Self.editingText?.undoManager?.canUndo ?? !e.history.isEmpty }) {
                 if let text = Self.editingText { text.undoManager?.undo() } else if let last = e.history.first { e.restore(last) }
@@ -192,7 +186,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
                 sub("Type", types),
                 cmd("band-gain-up", when: gainBand) { e.editSelectedBand { $0.gainDB = (($0.gainDB + 0.5) * 10).rounded() / 10 } },
                 cmd("band-gain-down", when: gainBand) { e.editSelectedBand { $0.gainDB = (($0.gainDB - 0.5) * 10).rounded() / 10 } },
-                // A twelfth of an octave, and a tenth narrower or wider, per press.
                 cmd("band-freq-up", when: band) { e.editSelectedBand { $0.freq *= pow(2, 1.0 / 12) } },
                 cmd("band-freq-down", when: band) { e.editSelectedBand { $0.freq /= pow(2, 1.0 / 12) } },
                 cmd("band-wider", when: band) { e.editSelectedBand { $0.q /= 1.1 } },
@@ -273,7 +266,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
         }
     }
 
-    /// The name of whatever already uses a shortcut, so the same keys are not given to two things.
     func holder(of shortcut: Shortcut, except id: String) -> String? {
         for c in MenuCommand.all where c.id != id && Shortcut(engine.shortcut(for: c.id)) == shortcut { return c.title }
         let ours = Set(items.values.map(ObjectIdentifier.init))
@@ -290,7 +282,6 @@ final class MainMenu: NSObject, NSMenuDelegate {
         return NSApp.mainMenu.flatMap(search)
     }
 
-    /// Lists that change are filled in when their menu opens.
     func menuNeedsUpdate(_ menu: NSMenu) {
         let e = engine
         menu.removeAllItems()

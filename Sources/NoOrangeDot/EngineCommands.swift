@@ -2,8 +2,6 @@ import AppKit
 import Foundation
 
 extension Band {
-    /// The band one step up or down in frequency from the selected one, wrapping at the ends.
-    /// With nothing selected, a step up starts at the lowest band and a step down at the highest.
     static func neighbour(of selected: UUID?, in bands: [Band], step: Int) -> UUID? {
         let order = bands.sorted { $0.freq < $1.freq }
         guard !order.isEmpty else { return nil }
@@ -12,7 +10,6 @@ extension Band {
     }
 }
 
-/// Actions the window and the menus share.
 extension Engine {
     static let heatMapKey = "heatMap"
     static var heatMap: Bool {
@@ -20,7 +17,6 @@ extension Engine {
         set { UserDefaults.standard.set(newValue, forKey: heatMapKey) }
     }
 
-    /// The shortcut the user gave a command, as text. Empty when it has none.
     func shortcut(for id: String) -> String {
         id == MenuCommand.mute ? muteShortcut : id == MenuCommand.record ? recordShortcut : shortcuts[id] ?? ""
     }
@@ -46,7 +42,6 @@ extension Engine {
         bands.remove(at: i)
     }
 
-    /// Moves the selection along the bands from low to high, wrapping at the ends.
     func selectBand(step: Int) {
         selectedBand = Band.neighbour(of: selectedBand, in: bands, step: step)
     }
@@ -72,7 +67,6 @@ extension Engine {
         if panel.runModal() == .OK, let url = panel.url { recordingsFolder = url.path }
     }
 
-    /// Plays a recording: through the EQ when its raw take was kept, as saved otherwise.
     @MainActor func play(_ r: Recording) {
         Playback.shared.stop()
         if r.raw != nil { startAudition(r) } else { stopAudition(); Playback.shared.toggle(r.url) }

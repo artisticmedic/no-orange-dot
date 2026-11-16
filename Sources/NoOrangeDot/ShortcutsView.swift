@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Settings for keyboard shortcuts. The app ships with none: each one here is the user's choice.
 struct ShortcutsCard: View {
     @EnvironmentObject var engine: Engine
     @State private var showAll = false
@@ -40,7 +39,6 @@ struct ShortcutsCard: View {
         }
     }
 
-    /// Refuses keys that something else in the app already uses, and says what holds them.
     private func recorder(_ c: MenuCommand) -> some View {
         ShortcutButton(text: Binding(get: { engine.shortcut(for: c.id) }, set: { text in
             if let s = Shortcut(text), let holder = MainMenu.current?.holder(of: s, except: c.id) {

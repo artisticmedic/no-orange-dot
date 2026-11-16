@@ -71,7 +71,6 @@ struct Shortcut: Equatable {
     private static let symbols = ["space": "Space", "up": "↑", "down": "↓", "left": "←", "right": "→"]
     private static func isFunctionKey(_ name: String) -> Bool { name.hasPrefix("f") && name.count > 1 }
 
-    /// The same shortcut as a menu item shows it.
     var menuKey: String {
         switch key {
         case "space": return " "

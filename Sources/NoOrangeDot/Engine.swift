@@ -18,7 +18,6 @@ final class Engine: ObservableObject {
     @Published var recordShortcut = "" { didSet { if recordShortcut != oldValue { changed() } } }
     /// Shortcuts the user gave to menu commands, by command ID. They work while this app is in front.
     @Published var shortcuts: [String: String] = [:] { didSet { if shortcuts != oldValue { changed() } } }
-    /// The EQ band being edited.
     @Published var selectedBand: UUID?
     @Published var lastWakeMs: Double?
     @Published var error: String?
