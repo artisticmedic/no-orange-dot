@@ -36,6 +36,8 @@ final class Engine: ObservableObject {
     }
     /// Microphones from most to least preferred. The first one that is plugged in is the one in use.
     @Published var micOrder: [String] = [] { didSet { if micOrder != oldValue { changed() } } }
+    /// Names of microphones seen since launch, so one that was just unplugged keeps its name.
+    var seenNames: [String: String] = [:]
     var fallingBack = false
     var builtRate = 0.0
     /// Every microphone's saved sound. The one in use is mirrored in `bands`, `dynamics`, `bypass` and `outputGainDB`.
@@ -245,6 +247,7 @@ final class Engine: ObservableObject {
         teardown()
         deviceSignature = currentSignature()
         inputs = HAL.inputDevices()
+        for input in inputs { seenNames[input.uid] = input.name }
         var unranked = inputs.map(\.uid).filter { !micOrder.contains($0) }
         if micOrder.isEmpty, let i = unranked.firstIndex(of: HAL.defaultInputUID() ?? "") { unranked.insert(unranked.remove(at: i), at: 0) }
         if !unranked.isEmpty { micOrder += unranked }

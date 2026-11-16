@@ -10,7 +10,7 @@ extension Engine {
 
     var activeProfile: MicProfile {
         var p = MicProfile()
-        p.name = inputs.first(where: { $0.uid == inputUID })?.name ?? mics[inputUID]?.name ?? ""
+        p.name = micName(for: inputUID) ?? ""
         p.equalizer = !bypass; p.outputGainDB = outputGainDB; p.bands = bands; p.dynamics = dynamics; p.gainLockDB = gainLockDB
         return p
     }
@@ -41,7 +41,7 @@ extension Engine {
         guard !applying else { return }
         if !old.isEmpty {
             var p = activeProfile
-            p.name = inputs.first(where: { $0.uid == old })?.name ?? mics[old]?.name ?? ""
+            p.name = micName(for: old) ?? ""
             mics[old] = p
         }
         load(mics[inputUID] ?? MicProfile())
