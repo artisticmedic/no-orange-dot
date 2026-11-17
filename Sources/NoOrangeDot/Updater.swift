@@ -127,6 +127,13 @@ final class Updater: ObservableObject {
     enum State: Equatable {
         case idle, notSetUp, checking, upToDate(Date), available(Release), needsNewerSystem(Release)
         case downloading(Release), installing(Release), failed(String)
+
+        var available: Release? {
+            switch self { case .available(let release), .installing(let release): return release; default: return nil }
+        }
+        var busy: Bool {
+            switch self { case .checking, .downloading: return true; default: return false }
+        }
     }
 
     static let shared = Updater()
@@ -143,11 +150,8 @@ final class Updater: ObservableObject {
         watchForNewVersion()
     }
 
-    var available: Release? { if case .available(let r) = state { return r }; return nil }
-
-    var busy: Bool {
-        switch state { case .checking, .downloading, .installing: return true; default: return false }
-    }
+    var available: Release? { state.available }
+    var busy: Bool { state.busy }
 
     var summary: String {
         switch state {
@@ -158,7 +162,7 @@ final class Updater: ObservableObject {
         case .available(let r): return "Version \(r.version) is available." + (r.notes.map { " \($0)" } ?? "")
         case .needsNewerSystem(let r): return "Version \(r.version) needs macOS \(r.minimumSystem ?? "") or later."
         case .downloading(let r): return "Downloading version \(r.version)…"
-        case .installing: return "The installer is open. The app restarts when it finishes."
+        case .installing: return "Installer opened. If it was cancelled or failed, choose Install to try again."
         case .failed(let why): return why
         }
     }

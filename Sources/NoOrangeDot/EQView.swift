@@ -17,8 +17,8 @@ struct EQView: View {
     private var curveCard: some View {
         Card {
             Row(title: "Equalizer", caption: readout ?? "Drag a dot to adjust a band.") {
-                IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { if let last = engine.history.first { engine.restore(last) } }
-                    .disabled(engine.history.isEmpty).opacity(engine.history.isEmpty ? 0.35 : 1)
+                IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { engine.undoEQ() }
+                    .disabled(!engine.canUndoEQ).opacity(engine.canUndoEQ ? 1 : 0.35)
                 if engine.history.isEmpty {
                     IconButton(symbol: "clock.arrow.circlepath", label: "Earlier curves") { showEmptyHistory = true }
                         .popover(isPresented: $showEmptyHistory, arrowEdge: .bottom) {

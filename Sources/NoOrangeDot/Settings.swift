@@ -76,10 +76,11 @@ struct SoundPreset: Codable, Identifiable, Equatable {
         if let i = list.firstIndex(where: { $0.name.caseInsensitiveCompare(preset.name) == .orderedSame }) { list[i] = preset } else { list.append(preset) }
     }
 
-    /// Finds a preset by its number in the list (from 1) or by name.
+    /// Exact names win over positions, so an older preset named "2" still selects itself.
     static func index(of key: String, in list: [SoundPreset]) -> Int? {
-        if let n = Int(key), list.indices.contains(n - 1) { return n - 1 }
-        return list.firstIndex { $0.name.caseInsensitiveCompare(key) == .orderedSame }
+        if let named = list.firstIndex(where: { $0.name.caseInsensitiveCompare(key) == .orderedSame }) { return named }
+        if let n = Int(key), n >= 1, n <= list.count { return n - 1 }
+        return nil
     }
 }
 
@@ -318,8 +319,9 @@ struct EQSnapshot: Codable, Identifiable, Equatable {
     var date: Date
     var mic: String
     var bands: [Band]
+    var micUID: String? = nil
 
-    enum CodingKeys: String, CodingKey { case date, mic, bands }
+    enum CodingKeys: String, CodingKey { case date, mic, bands, micUID }
 
     /// "3 bands · low shelf +2.9, bell −2.5"
     var summary: String {
@@ -328,15 +330,55 @@ struct EQSnapshot: Codable, Identifiable, Equatable {
         return "\(on.count) band\(on.count == 1 ? "" : "s")" + (moves.isEmpty ? "" : " · " + moves.joined(separator: ", "))
     }
 
-    static func load() -> [EQSnapshot] {
-        guard let data = try? Data(contentsOf: Settings.historyFile) else { return [] }
-        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601
-        return (try? d.decode([EQSnapshot].self, from: data)) ?? []
+    struct Archive {
+        let snapshots: [EQSnapshot]
+        let revision: Data?
     }
 
-    static func save(_ list: [EQSnapshot]) {
-        let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? FileManager.default.createDirectory(at: Settings.directory, withIntermediateDirectories: true)
-        try? e.encode(list).write(to: Settings.historyFile, options: .atomic)
+    enum Failure: LocalizedError {
+        case changed
+        case read(Error)
+        case invalid(Error)
+        case write(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .changed: return "history.json changed outside the app. The newer earlier curves were kept."
+            case .read(let error): return "Couldn't read history.json: \(error.localizedDescription)"
+            case .invalid(let error): return "history.json has an error and was left untouched: \(error.localizedDescription)"
+            case .write(let error): return "Couldn't save history.json: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    static func load() -> [EQSnapshot] { (try? read().snapshots) ?? [] }
+
+    static func read(from file: URL = Settings.historyFile) throws -> Archive {
+        let data: Data
+        do { data = try Data(contentsOf: file) }
+        catch let error as CocoaError where error.code == .fileReadNoSuchFile { return Archive(snapshots: [], revision: nil) }
+        catch { throw Failure.read(error) }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        do { return Archive(snapshots: try decoder.decode([EQSnapshot].self, from: data), revision: data) }
+        catch { throw Failure.invalid(error) }
+    }
+
+    static func save(_ list: [EQSnapshot], expecting revision: Data?, to file: URL = Settings.historyFile) throws -> Archive {
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data: Data
+        let directory = file.deletingLastPathComponent()
+        do {
+            data = try encoder.encode(list)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch { throw Failure.write(error) }
+        let lock = open(directory.appendingPathComponent("history.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard lock >= 0 else { throw Failure.write(NSError(domain: NSPOSIXErrorDomain, code: Int(errno))) }
+        defer { close(lock) }
+        guard flock(lock, LOCK_EX) == 0 else { throw Failure.write(NSError(domain: NSPOSIXErrorDomain, code: Int(errno))) }
+        defer { flock(lock, LOCK_UN) }
+        guard try read(from: file).revision == revision else { throw Failure.changed }
+        do { try data.write(to: file, options: .atomic) }
+        catch { throw Failure.write(error) }
+        return Archive(snapshots: list, revision: data)
     }
 }

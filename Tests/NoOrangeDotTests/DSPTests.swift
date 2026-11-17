@@ -118,6 +118,13 @@ final class DSPTests: XCTestCase {
         XCTAssertEqual(peakDB(loud[24000...]), -20, accuracy: 0.1)
     }
 
+    func testZeroHoldGateOpensForSpeechAndClosesAfterIt() {
+        let c = chain { $0.gateOn = true; $0.gateThresholdDB = -40; $0.gateRangeDB = -30; $0.gateHoldMs = 0; $0.gateReleaseMs = 50 }
+        let out = run(c, sine(440, db: -20, seconds: 1) + sine(440, db: -60, seconds: 1))
+        XCTAssertEqual(peakDB(out[24000..<48000]), -20, accuracy: 0.1)
+        XCTAssertEqual(peakDB(out[72000...]), -90, accuracy: 0.5)
+    }
+
     func testGateHoldsOpenAfterSpeechStops() {
         let c = chain { $0.gateOn = true; $0.gateThresholdDB = -40; $0.gateRangeDB = -30; $0.gateHoldMs = 300; $0.gateReleaseMs = 50 }
         let out = run(c, sine(440, db: -20, seconds: 0.5) + sine(440, db: -60, seconds: 1.5))

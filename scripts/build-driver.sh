@@ -24,7 +24,7 @@ xcodebuild -project BlackHole.xcodeproj -configuration Release -target BlackHole
   kDevice2_IsHidden=true
   kNumber_Of_Channels=2
   kManufacturer_Name=\"Tim\ Gailey\"
-  kSampleRates=44100,48000,88200,96000' 2>&1 | grep -E "error|BUILD" || true
+  kSampleRates=44100,48000,88200,96000' 2>&1 | sed -En '/error|BUILD/p'
 if [ -n "${SIGN_ID:-}" ]; then
   codesign --force --deep --options runtime --timestamp --sign "$SIGN_ID" "$ROOT/build/NoOrangeDot.driver"
 else

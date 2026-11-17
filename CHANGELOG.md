@@ -6,6 +6,11 @@
 - Recording controls now show the timer, pause, mute and stop in the top bar, followed by a saved confirmation. Choose which recording to use when comparing presets.
 - Finish pending recording-file writes before quitting, and give rapid successive takes unique filenames.
 - Keep newer CLI or hand-edited settings when a GUI save is pending. Report failed saves instead of silently discarding them.
+- Report recording setup/write/close failures, and keep file handles alive until their audio callback finishes. Restart headphone monitoring when input rates change and output silence when input stops.
+- Undo and redo EQ edits in order, with separate history for each microphone. Keep the last edit when quitting; clearing history stays cleared.
+- Use one shortcut recorder at a time and safely swap global shortcuts. Text editing keeps its own Undo/Redo and Control shortcuts.
+- Fix the noise gate at zero hold, reject unsafe dynamics and invalid CLI indices, and correctly address presets with numeric names.
+- Allow update installation to be retried after cancellation. Stop packaging when the driver fails to compile.
 - Choose which microphones belong in the priority list and reorder them in Settings → Microphone priority. Included microphones take priority; other available microphones provide fallback when none are connected.
 - New microphones stay outside the priority list until included. Unplugged microphones keep their place and saved sound. Choosing a microphone manually leaves the list unchanged.
 - Connecting or disconnecting an excluded microphone keeps the current recording and audio engine running when the selected microphone remains available.

@@ -15,6 +15,20 @@ enum EditorRequest {
     static var focusMicName = false
 }
 
+enum ShortcutRouting {
+    static func defersToText(modifiers: NSEvent.ModifierFlags, editingText: Bool) -> Bool {
+        editingText && modifiers.contains(.control) && !modifiers.contains(.command)
+    }
+}
+
+@MainActor
+private final class ApplicationMenu: NSMenu {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if ShortcutRouting.defersToText(modifiers: event.modifierFlags, editingText: NSApp.keyWindow?.firstResponder is NSText) { return false }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 /// A menu item that runs a closure and reads its tick, title and availability each time its menu opens.
 final class ActionItem: NSMenuItem, NSMenuItemValidation {
     private var run: () -> Void = {}
@@ -76,7 +90,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
     }
 
     func install() {
-        let e = engine, main = NSMenu()
+        let e = engine, main = ApplicationMenu()
         @discardableResult func add(_ title: String, _ items: [NSMenuItem]) -> NSMenu {
             let item = NSMenuItem(), menu = NSMenu(title: title)
             items.forEach(menu.addItem)
@@ -137,10 +151,13 @@ final class MainMenu: NSObject, NSMenuDelegate {
 
         add("Edit", [
             ActionItem("Undo", key: "z", title: { Self.editingText != nil ? "Undo" : "Undo EQ Change" },
-                       when: { Self.editingText?.undoManager?.canUndo ?? !e.history.isEmpty }) {
-                if let text = Self.editingText { text.undoManager?.undo() } else if let last = e.history.first { e.restore(last) }
+                       when: { if let text = Self.editingText { return text.undoManager?.canUndo ?? false }; return e.canUndoEQ }) {
+                if let text = Self.editingText { text.undoManager?.undo() } else { e.undoEQ() }
             },
-            NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"),
+            ActionItem("Redo", key: "z", mods: [.command, .shift], title: { Self.editingText != nil ? "Redo" : "Redo EQ Change" },
+                       when: { if let text = Self.editingText { return text.undoManager?.canRedo ?? false }; return e.canRedoEQ }) {
+                if let text = Self.editingText { text.undoManager?.redo() } else { e.redoEQ() }
+            },
             .separator(),
             NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
             NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
@@ -188,7 +205,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
                 cmd("curve-flat", "Flat", on: { e.bands == Presets.flat }) { e.bands = Presets.flat },
             ]),
             sub("Earlier Curves", curves),
-            cmd("clear-history", when: { !e.history.isEmpty }) { e.clearHistory() },
+            cmd("clear-history", when: { !e.history.isEmpty || e.canUndoEQ || e.canRedoEQ }) { e.clearHistory() },
             sub("Band", NSMenu(title: "Band"), [
                 cmd("band-add", when: { e.bands.count < DSPChain.maxBands }) { [weak self] in self?.show(.sound); e.addBand() },
                 cmd("band-next", when: { !e.bands.isEmpty }) { [weak self] in self?.show(.sound); e.selectBand(step: 1) },

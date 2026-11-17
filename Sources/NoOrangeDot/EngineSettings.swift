@@ -44,11 +44,13 @@ extension Engine {
     /// for the first time starts flat.
     func switchProfile(from old: String) {
         guard !applying else { return }
+        flushHistory()
         if !old.isEmpty {
             var p = activeProfile
             p.name = micName(for: old) ?? ""
             mics[old] = p
         }
+        eqHistory.selectMic(inputUID, name: micName(for: inputUID) ?? "")
         load(mics[inputUID] ?? MicProfile())
     }
 
@@ -64,10 +66,14 @@ extension Engine {
     }
 
     func use(_ preset: SoundPreset) {
+        flushHistory()
+        let old = bands
         var p = activeProfile
         preset.apply(to: &p)
         p.bands = p.bands.map { var b = $0; b.id = UUID(); return b }
         load(p)
+        noteHistory(old)
+        flushHistory()
         changed()
     }
 
@@ -75,30 +81,93 @@ extension Engine {
 
     // MARK: History
 
-    /// Remembers the curve from before a run of edits. A drag is hundreds of small changes, so the
-    /// snapshot is taken once the curve has been still for a moment.
+    var history: [EQSnapshot] { eqHistory.snapshots }
+    var canUndoEQ: Bool { eqHistory.canUndo }
+    var canRedoEQ: Bool { eqHistory.canRedo }
+
+    /// Group a drag into one edit, while allowing Undo before the debounce finishes.
     func noteHistory(_ old: [Band]) {
-        guard historyUID == inputUID else { historyUID = inputUID; historyBefore = nil; return } // another mic's curve came in
-        guard old != bands else { return }
-        if historyBefore == nil { historyBefore = old }
+        guard !applying, old != bands else { return }
+        eqHistory.selectMic(inputUID, name: micName(for: inputUID) ?? "")
+        eqHistory.record(before: old, after: bands)
         historyWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, let before = self.historyBefore else { return }
-            self.historyBefore = nil
-            guard before != self.bands, self.history.first?.bands != before else { return }
-            let name = self.inputs.first(where: { $0.uid == self.inputUID })?.name ?? ""
-            self.history.insert(EQSnapshot(date: Date(), mic: name, bands: before), at: 0)
-            if self.history.count > 40 { self.history.removeLast(self.history.count - 40) }
-            EQSnapshot.save(self.history)
-        }
+        let work = DispatchWorkItem { [weak self] in self?.flushHistory() }
         historyWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
-    /// Brings an earlier curve back. The curve it replaces goes into the history in turn.
-    func restore(_ snapshot: EQSnapshot) { bands = snapshot.bands.map { var b = $0; b.id = UUID(); return b } }
+    func flushHistory() {
+        historyWork?.cancel(); historyWork = nil
+        if eqHistory.flush() { saveHistory() }
+    }
 
-    func clearHistory() { history = []; EQSnapshot.save(history) }
+    private func saveHistory() {
+        do {
+            if let archive = historyArchive {
+                historyArchive = try EQSnapshot.save(history, expecting: archive.revision)
+            } else {
+                let archive = try EQSnapshot.read()
+                historyArchive = archive
+                eqHistory.replaceSnapshots(archive.snapshots)
+            }
+        } catch {
+            switch error {
+            case EQSnapshot.Failure.write: break
+            default:
+                if let archive = try? EQSnapshot.read() {
+                    historyArchive = archive
+                    eqHistory.replaceSnapshots(archive.snapshots)
+                } else { historyArchive = nil }
+            }
+            self.error = error.localizedDescription
+        }
+    }
+
+    func undoEQ() {
+        historyWork?.cancel(); historyWork = nil
+        guard let previous = eqHistory.undo(current: bands) else { return }
+        applyHistoryCurve(previous)
+        saveHistory()
+    }
+
+    func redoEQ() {
+        historyWork?.cancel(); historyWork = nil
+        guard let next = eqHistory.redo(current: bands) else { return }
+        applyHistoryCurve(next)
+        saveHistory()
+    }
+
+    private func applyHistoryCurve(_ curve: [Band]) {
+        let was = applying
+        applying = true
+        bands = curve.map { var band = $0; band.id = UUID(); return band }
+        applying = was
+        changed()
+    }
+
+    /// Browsing an earlier curve creates a new undoable edit; it does not consume the archive.
+    func restore(_ snapshot: EQSnapshot) {
+        flushHistory()
+        bands = snapshot.bands.map { var band = $0; band.id = UUID(); return band }
+        flushHistory()
+    }
+
+    func clearHistory() {
+        historyWork?.cancel(); historyWork = nil
+        eqHistory.clear()
+        saveHistory()
+    }
+
+    func flushPendingChanges() {
+        flushHistory()
+        if let archive = historyArchive, archive.snapshots != history { saveHistory() }
+        saveWork?.cancel(); saveWork = nil
+        guard let snapshot = configSnapshot, settings != snapshot.settings else { return }
+        do {
+            configSnapshot = try Settings.store.save(settings, expecting: snapshot.revision)
+            configProblem = nil
+        } catch { configProblem = error.localizedDescription }
+    }
 
     /// A pending app edit may replace only the disk version it was based on.
     func changed() {
@@ -135,6 +204,8 @@ extension Engine {
         configProblem = nil
         let s = snapshot.settings
         guard s != settings else { return }
+        flushHistory()
+        let oldInputUID = inputUID, oldBands = bands
         applying = true
         mics = s.mics
         if s.muted != muted { muted = s.muted }
@@ -152,7 +223,12 @@ extension Engine {
         if s.micName != micName { micName = s.micName }
         if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { chooseInput(s.inputUID) }
         applying = false
+        eqHistory.selectMic(inputUID, name: micName(for: inputUID) ?? "")
         load(mics[inputUID] ?? MicProfile())
+        if inputUID == oldInputUID, bands != oldBands {
+            eqHistory.replace(before: oldBands, after: bands)
+            saveHistory()
+        }
         if (selectedInput ?? "") != inputUID { rebuild() }
         if micOrder != s.micOrder { changed() }
     }
@@ -178,7 +254,7 @@ extension Engine {
         case "gain-lock": setGainLock(true)
         case "gain-unlock": setGainLock(false)
         case _ where command.hasPrefix("gain "): if let v = Double(command.dropFirst(5)) { refreshMicGain(); setMicGain(v) }
-        case _ where command.hasPrefix("history-restore "): if let n = Int(command.dropFirst(16)), history.indices.contains(n - 1) { restore(history[n - 1]) }
+        case _ where command.hasPrefix("history-restore "): if let n = Int(command.dropFirst(16)), n >= 1, n <= history.count { restore(history[n - 1]) }
         case "history-clear": clearHistory()
         case "play-stop": stopAudition()
         case _ where command.hasPrefix("play "):

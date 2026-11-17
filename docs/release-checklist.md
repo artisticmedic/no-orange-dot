@@ -1,13 +1,18 @@
 # No Orange Dot release checklist
 
-Status: 16 November 2026. Source version 0.1.2; public installer/feed still 0.1.1. The priority feature and voice check passed 76 automated tests (one existing installer test skipped). The voice check has light/dark previews and a synthesis-only reference verification: 6.57 seconds, −20 dBFS active average, −6.73 dBFS peak. Audible A/B and hardware behavior still need hands-on checks. Those checks do not replace hardware and upgrade testing.
+Status: 17 November 2026. Source version 0.1.2; public installer/feed still 0.1.1. The full suite ran 123 tests: 122 passed, one skipped because a notarized 0.1.2 package is not built. The voice check has light/dark previews and synthesis-only reference verification (−20 dBFS active average). Live hardware and upgrade checks below remain separate from this automated coverage.
 
 ## Fix before publishing an installer
 
-- [x] Finalize the active take before Quit and wait for previously queued recording closes. Claude verified quitting mid-take; stop-then-immediate-quit with an active client still needs the live check below.
+- [x] Finalize the active take before Quit and wait for previously queued recording closes. Claude reported live mid-take and stop/quit smoke tests passing. A semaphore-gated regression now proves that an already-stopped take blocks shutdown until both WAVs close and reopen with all submitted frames.
 - [x] Check exact file revisions when saving, preserve newer disk edits and malformed files, serialize app/CLI writes, and report read/write failures. Eleven persistence/CLI regressions pass. Hand editors do not participate in the app/CLI lock.
-- [ ] Triage the remaining confirmed review findings: zero-hold gate attenuation, recording write errors, listen-back rate changes, undo/history behavior, shortcut capture/registration, and invalid CLI bounds.
-- [ ] Make driver builds fail when xcodebuild fails. The current `build-driver.sh` pipeline can continue and package a stale driver.
+- [x] Check recording creation/setup/write/close errors and suppress Saved on failure; synchronize recording handle handoff with the callback. Injected failures, muted stereo content, and two-mono-buffer input layouts are covered without microphone capture.
+- [x] Restart listen-back with the producer's rate; clear stopped input buffers and output silence on underflow. Reader behavior is tested; audible rate switching still needs hardware checks.
+- [x] Fix zero-hold gate attenuation, reject unsafe dynamics from CLI/config, and reject empty/extreme indices without crashing. Exact preset names take precedence over numeric positions.
+- [x] Give EQ Undo/Redo per-mic traversal, keep pending edits through switches/quit, prevent clear-history resurrection, and preserve newer/malformed history files. External same-mic EQ edits are undoable; text-field Undo stays with the text editor.
+- [x] Use one shortcut capture owner, suspend global actions while capturing, and release both old global bindings before registering replacements. Mock tests cover capture transfer and swaps; actual Carbon/non-US keyboard behavior remains a manual check.
+- [x] Leave the updater available for retry/recheck after handing off to Installer, including cancellation or failure.
+- [x] Stop the driver build on xcodebuild failure. Fixture tests prove stale output is not signed after failure and an empty filtered log does not turn success into failure.
 
 ## Hands-on checks
 
@@ -22,6 +27,8 @@ Use the single app in /Applications. Keep the person's current audio settings ba
 - [ ] Voice check: play the reference and a real take at the same system volume; test quiet/loud speech, mute/close stopping the live check, recording selection during playback, and a Mac without the reference voice installed. The guide uses average signal level in dBFS, not LUFS or calibrated room loudness.
 - [ ] Keyboard/accessibility: actual custom shortcuts, global mute/record, standard text shortcuts, switching between shortcut recorders, VoiceOver, and a non-US keyboard layout.
 - [ ] Clean install and 0.1.1 → 0.1.2 upgrade in a guest, preserving settings and driver availability. Test cancelled/failed installation and the updater retry path.
+
+The older deep review also noted command-targeting/acknowledgement gaps: NOD_HOME does not isolate distributed commands, and status.json alone is not proof a command was received. Integration tests must avoid sending commands to the real app from scratch fixtures. Meter/ring publication still uses the existing shared-memory design; stress testing remains open.
 
 ## Package and distribute
 

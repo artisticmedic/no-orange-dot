@@ -146,10 +146,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func applyShortcuts() {
         guard appliedShortcuts != (engine.muteShortcut, engine.recordShortcut) else { return }
         appliedShortcuts = (engine.muteShortcut, engine.recordShortcut)
-        var refused: [String] = []
-        if !Hotkeys.shared.set(1, Shortcut(engine.muteShortcut), action: { [weak self] in self?.engine.muted.toggle() }) { refused.append(Shortcut(engine.muteShortcut)?.display ?? engine.muteShortcut) }
-        if !Hotkeys.shared.set(2, Shortcut(engine.recordShortcut), action: { [weak self] in self?.engine.toggleRecording() }) { refused.append(Shortcut(engine.recordShortcut)?.display ?? engine.recordShortcut) }
-        if !refused.isEmpty { engine.error = "macOS wouldn't register \(refused.joined(separator: " or ")). Another app may already use it." }
+        Hotkeys.shared.registrationFailed = { [weak self] ids in
+            guard let self else { return }
+            let refused = ids.map { id in
+                let text = id == 1 ? self.engine.muteShortcut : self.engine.recordShortcut
+                return Shortcut(text)?.display ?? text
+            }
+            self.engine.error = "macOS wouldn't register \(refused.joined(separator: " or ")). Another app may already use it."
+        }
+        Hotkeys.shared.replace(with: [
+            .init(id: 1, shortcut: Shortcut(engine.muteShortcut), action: { [weak self] in self?.engine.muted.toggle() }),
+            .init(id: 2, shortcut: Shortcut(engine.recordShortcut), action: { [weak self] in self?.engine.toggleRecording() }),
+        ])
     }
 
     private var appliedAppIcon = ""

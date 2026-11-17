@@ -114,6 +114,33 @@ struct Dynamics: Codable, Equatable {
         compMakeupDB = try c.decodeIfPresent(Double.self, forKey: .compMakeupDB) ?? d.compMakeupDB
         limiterOn = try c.decodeIfPresent(Bool.self, forKey: .limiterOn) ?? d.limiterOn
         limiterCeilingDB = try c.decodeIfPresent(Double.self, forKey: .limiterCeilingDB) ?? d.limiterCeilingDB
+        try validate()
+    }
+
+    struct InvalidValue: LocalizedError {
+        let name: String
+        let range: ClosedRange<Double>
+        var errorDescription: String? { "\(name) must be from \(range.lowerBound) to \(range.upperBound)." }
+    }
+
+    // Scripts may use wider ranges than the sliders; durations stay bounded before sample-count conversion.
+    static let limits: [(String, WritableKeyPath<Dynamics, Double>, ClosedRange<Double>)] = [
+        ("Gate threshold", \.gateThresholdDB, -120 ... 0),
+        ("Gate range", \.gateRangeDB, -120 ... 0),
+        ("Gate hold", \.gateHoldMs, 0 ... 60000),
+        ("Gate release", \.gateReleaseMs, 0 ... 60000),
+        ("Compressor threshold", \.compThresholdDB, -120 ... 0),
+        ("Compressor ratio", \.compRatio, 1 ... 100),
+        ("Compressor attack", \.compAttackMs, 0 ... 60000),
+        ("Compressor release", \.compReleaseMs, 0 ... 60000),
+        ("Compressor makeup", \.compMakeupDB, -60 ... 60),
+        ("Limiter ceiling", \.limiterCeilingDB, -120 ... 0),
+    ]
+
+    func validate() throws {
+        for (name, key, range) in Self.limits where !range.contains(self[keyPath: key]) {
+            throw InvalidValue(name: name, range: range)
+        }
     }
 }
 
@@ -214,7 +241,7 @@ final class DSPChain {
                 var g = 1.0
                 if gateOn {
                     if env >= gateThresh { gateHold = gateHoldSamples } else if gateHold > 0 { gateHold -= 1 }
-                    let target = gateHold > 0 ? 1.0 : gateFloor
+                    let target = env >= gateThresh || gateHold > 0 ? 1.0 : gateFloor
                     let c = target > gateGain ? gateOpen : gateClose
                     gateGain = c * gateGain + (1 - c) * target
                     g *= gateGain

@@ -296,7 +296,7 @@ enum CLI {
                 for (i, s) in list.enumerated() { print("\(i + 1)  \(s.date.formatted(date: .abbreviated, time: .shortened))  \(s.summary)") }
                 return 0
             case "restore":
-                guard rest.count > 1, let n = Int(rest[1]), list.indices.contains(n - 1) else { return fail("Use: nod history restore <n>, with a number from nod history") }
+                guard rest.count > 1, let n = Int(rest[1]), n >= 1, n <= list.count else { return fail("Use: nod history restore <n>, with a number from nod history") }
                 Command.send("history-restore \(n)"); return settle()
             case "clear": Command.send("history-clear"); return 0
             default: return fail("Use: nod history, nod history restore <n>, or nod history clear")
@@ -309,7 +309,7 @@ enum CLI {
                 for (i, r) in list.enumerated() { print("\(i + 1)  \(r.date.formatted(date: .abbreviated, time: .shortened))  \(r.appVersion)  \(r.exception)") }
                 return 0
             case "show":
-                guard rest.count > 1, let n = Int(rest[1]), list.indices.contains(n - 1) else { return fail("Use: nod crashes show <n>, with a number from nod crashes") }
+                guard rest.count > 1, let n = Int(rest[1]), n >= 1, n <= list.count else { return fail("Use: nod crashes show <n>, with a number from nod crashes") }
                 print(list[n - 1].summary); print("\nFull report: \(list[n - 1].file.path)")
                 return 0
             default: return fail("Use: nod crashes, or nod crashes show <n>")
@@ -434,6 +434,7 @@ enum CLI {
                 }
             default: throw Bad("Unknown command \"\(verb)\". Try: nod help")
             }
+            try s.active.dynamics.validate()
         }
         if verb == "band", result == 0 { return printBands() }
         if verb == "preset", result == 0, ["list", "save", "delete"].contains(rest.first ?? ""), case .ok(let s) = Settings.load() {
@@ -501,7 +502,8 @@ enum CLI {
         }
     }
     private static func index(_ a: String?, _ count: Int) throws -> Int {
-        guard let a, let n = Int(a), (1...count).contains(n) else { throw Bad("Give a band number from 1 to \(count)") }
+        guard count > 0 else { throw Bad("There are no bands. Add one with: nod band add freq=1000") }
+        guard let a, let n = Int(a), n >= 1, n <= count else { throw Bad("Give a band number from 1 to \(count)") }
         return n - 1
     }
     private static func apply(_ kv: [(String, String)], to b: inout Band) throws {

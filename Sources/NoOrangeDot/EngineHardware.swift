@@ -17,6 +17,11 @@ extension Engine {
             }
             listener.source = { [unowned self] in (self.postRing, Self.ringSize, self.ringIndex) }
             evaluate()
+            guard running else {
+                if error == nil { error = "Couldn't open the microphone for listen back. Choose an available microphone and try again." }
+                listenBack = false
+                return
+            }
             if !listener.start(sampleRate: sampleRate) { error = "Couldn't start listen back."; listenBack = false }
         } else {
             listener.stop()

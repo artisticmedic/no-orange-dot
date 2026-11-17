@@ -88,6 +88,50 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try nod("comp", "on", "speed=4").code, 1)
     }
 
+    func testInvalidDynamicsAreRejectedWithoutChangingSettings() throws {
+        XCTAssertEqual(try nod("gate", "on", "hold=0").code, 0)
+        let before = try Data(contentsOf: config)
+        for option in ["hold=1e308", "hold=-1", "release=-1", "range=30", "threshold=1e308"] {
+            let result = try nod("gate", "on", option)
+            XCTAssertEqual(result.code, 1, option)
+            XCTAssertFalse(result.err.isEmpty)
+        }
+        for option in ["ratio=0", "attack=-1", "release=1e308", "makeup=1e308"] {
+            XCTAssertEqual(try nod("comp", "on", option).code, 1, option)
+        }
+        XCTAssertEqual(try nod("limiter", "on", "ceiling=-1e308").code, 1)
+        XCTAssertEqual(try Data(contentsOf: config), before)
+    }
+
+    func testExtremeHistoryAndCrashIndicesAreRejectedBeforeSendingCommands() throws {
+        XCTAssertEqual(try nod("history", "restore", String(Int.min)).code, 1)
+        XCTAssertEqual(try nod("crashes", "show", String(Int.min)).code, 1)
+    }
+
+    func testEmptyBandListRejectsIndicesWithoutCrashing() throws {
+        try Data(#"{"inputUID":"mic","mics":{"mic":{"bands":[]}}}"#.utf8).write(to: config)
+        let before = try Data(contentsOf: config)
+        XCTAssertEqual(try nod("band", "remove", "1").code, 1)
+        XCTAssertEqual(try nod("band", "set", "1", "gain=1").code, 1)
+        XCTAssertEqual(try Data(contentsOf: config), before)
+        XCTAssertEqual(try nod("band", "add", "freq=1000").code, 0)
+    }
+
+    func testNumericPresetNamesWinOverPositionsAndExtremeIndicesAreSafe() throws {
+        try Data(#"{"presets":[{"name":"2"},{"name":"Voice"}]}"#.utf8).write(to: config)
+        XCTAssertEqual(try nod("preset", "delete", String(Int.min)).code, 1)
+        XCTAssertEqual(try nod("preset", "delete", "2").code, 0)
+        let presets = try XCTUnwrap(try settings()["presets"] as? [[String: Any]])
+        XCTAssertEqual(presets.compactMap { $0["name"] as? String }, ["Voice"])
+    }
+
+    func testOversizedDynamicsInConfigAreLeftUntouched() throws {
+        let invalid = Data(#"{"inputUID":"mic","mics":{"mic":{"dynamics":{"gateHoldMs":1e308}}}}"#.utf8)
+        try invalid.write(to: config)
+        XCTAssertEqual(try nod("mute", "on").code, 1)
+        XCTAssertEqual(try Data(contentsOf: config), invalid)
+    }
+
     func testShortcuts() throws {
         XCTAssertEqual(try nod("shortcut", "mute", "Cmd+Opt+K").code, 0)
         XCTAssertEqual(try settings()["muteShortcut"] as? String, "opt+cmd+k")

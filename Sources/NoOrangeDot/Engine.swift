@@ -64,17 +64,15 @@ final class Engine: ObservableObject {
     /// Saved sounds, shared by every microphone.
     @Published var presets: [SoundPreset] = [] { didSet { if presets != oldValue { changed() } } }
     @Published var configProblem: String?
-    /// Curves this app has replaced, newest first, so any change to the EQ can be taken back.
-    @Published var history: [EQSnapshot] = EQSnapshot.load()
+    @Published var eqHistory = EQHistory()
+    var historyArchive: EQSnapshot.Archive?
     /// The real mic's own preamp gain, when the hardware lets the Mac set it.
     @Published var micGain: HAL.Gain?
     /// Hear yourself: the processed mic played to the Mac's output. Off at every launch.
     @Published var listenBack = false { didSet { if listenBack != oldValue { applyListenBack() } } }
     let listener = ListenBack()
     @Published var gainLockDB: Double? { didSet { if gainLockDB != oldValue { changed(); refreshMicGain() } } }
-    var historyBefore: [Band]?
     var historyWork: DispatchWorkItem?
-    var historyUID = ""
     @Published var icon: String { didSet { changed() } }
     @Published var appIcon = "paint" { didSet { if appIcon != oldValue { changed() } } }
     @Published var showInDock = false { didSet { if showInDock != oldValue { changed() } } }
@@ -102,7 +100,7 @@ final class Engine: ObservableObject {
     var recordedBefore: TimeInterval = 0
     var shuttingDown = false
     /// Recording files still waiting to be closed. Quitting waits for them.
-    let pendingCloses = DispatchGroup()
+    let pendingCloses = RecordingFinalizer()
     var recordSegmentStart: Date?
     let player = AuditionPlayer()
 
@@ -153,9 +151,7 @@ final class Engine: ObservableObject {
     let interleaved = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames * 2)
     var mutedFlag = false
     var stereoFlag = false
-    var recordFlag = false
-    var recordFile: ExtAudioFileRef?
-    var recordRawFile: ExtAudioFileRef?
+    let recordingWriter = RecordingWriter()
     let rawLeft = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
     let rawRight = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
     var peak: Float = 0
@@ -186,13 +182,18 @@ final class Engine: ObservableObject {
         updateFeed = s.updateFeed
         presets = s.presets
         micOrder = s.micOrder
-        historyUID = s.inputUID
         recordingsFolder = s.recordingsFolder
         muteShortcut = s.muteShortcut
         recordShortcut = s.recordShortcut
         shortcuts = s.shortcuts
         micName = s.micName
         mutedFlag = muted
+        do {
+            let archive = try EQSnapshot.read()
+            historyArchive = archive
+            eqHistory = EQHistory(snapshots: archive.snapshots)
+        } catch { self.error = error.localizedDescription }
+        eqHistory.selectMic(s.inputUID, name: p.name)
         left.initialize(repeating: 0, count: Self.maxFrames)
         right.initialize(repeating: 0, count: Self.maxFrames)
         interleaved.initialize(repeating: 0, count: Self.maxFrames * 2)
@@ -284,6 +285,13 @@ final class Engine: ObservableObject {
         stopRecording()
         stop()
         teardown()
+        memset(rawRing, 0, Self.ringSize * 4); memset(postRing, 0, Self.ringSize * 4)
+        ringIndex = 0
+        defer {
+            if listenBack, !listener.running {
+                if running { applyListenBack() } else { listenBack = false }
+            }
+        }
         deviceSignature = currentSignature()
         let pick = refreshInputs()
         if pick != inputUID {
@@ -357,6 +365,7 @@ final class Engine: ObservableObject {
         stop(); stopRecording()
         pendingCloses.wait()
         teardown()
+        flushPendingChanges()
     }
 
     // MARK: The name apps see
@@ -425,9 +434,12 @@ final class Engine: ObservableObject {
     }
 
     func stop() {
+        listener.stop()
         guard running, let p = ioProc else { return }
         AudioDeviceStop(aggregate, p)
         running = false
+        memset(rawRing, 0, Self.ringSize * 4); memset(postRing, 0, Self.ringSize * 4)
+        ringIndex = 0
         voiceLevel.reset()
         meters.voice = voiceLevel.reading
         meters.level = 0
@@ -440,16 +452,13 @@ final class Engine: ObservableObject {
         if firstCallbackAt == 0 { firstCallbackAt = mach_absolute_time() }
         let outs = UnsafeMutableAudioBufferListPointer(output)
         for b in outs { if let d = b.mData { memset(d, 0, Int(b.mDataByteSize)) } }
-        let ins = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
-        guard let src = ins.first, let srcData = src.mData, src.mNumberChannels > 0 else { return }
-        let ch = Int(src.mNumberChannels)
-        let frames = min(Int(src.mDataByteSize) / (4 * ch), Self.maxFrames)
-        let s = srcData.assumingMemoryBound(to: Float.self)
-        let stereo = stereoFlag && ch >= 2
-        for n in 0..<frames { left[n] = s[n * ch] }
-        if stereo { for n in 0..<frames { right[n] = s[n * ch + 1] } }
+        let stereo = stereoFlag
+        let frames = MicrophoneInput.copy(input, left: left, right: right, maximumFrames: Self.maxFrames, stereo: stereo)
+        guard frames > 0 else { return }
 
-        if recordFlag {
+        let writing = recordingWriter.beginBlock()
+        defer { if writing { recordingWriter.endBlock() } }
+        if writing {
             memcpy(rawLeft, left, frames * 4)
             if stereo { memcpy(rawRight, right, frames * 4) }
         }
@@ -471,13 +480,8 @@ final class Engine: ObservableObject {
         if stereo { for n in 0..<frames { let v = abs(right[n]); if v > p { p = v } } }
         peak = p
 
-        if recordFlag, let file = recordFile {
-            if mutedFlag {
-                memset(left, 0, frames * 4); memset(rawLeft, 0, frames * 4)
-                if stereo { memset(right, 0, frames * 4); memset(rawRight, 0, frames * 4) }
-            }
-            write(file, left, right, frames: frames, stereo: stereo)
-            if let raw = recordRawFile { write(raw, rawLeft, rawRight, frames: frames, stereo: stereo) }
+        if writing {
+            recordingWriter.write(left, right, rawLeft: rawLeft, rawRight: rawRight, frames: frames, interleaved: interleaved, muted: mutedFlag)
         }
 
         guard !mutedFlag, let dst = outs.last, let dstData = dst.mData, dst.mNumberChannels > 0 else { return }
@@ -490,18 +494,8 @@ final class Engine: ObservableObject {
         }
     }
 
-    func write(_ file: ExtAudioFileRef, _ l: UnsafeMutablePointer<Float>, _ r: UnsafeMutablePointer<Float>, frames: Int, stereo: Bool) {
-        if stereo {
-            for n in 0..<frames { interleaved[n * 2] = l[n]; interleaved[n * 2 + 1] = r[n] }
-            var abl = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(frames * 8), mData: interleaved))
-            ExtAudioFileWriteAsync(file, UInt32(frames), &abl)
-        } else {
-            var abl = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: l))
-            ExtAudioFileWriteAsync(file, UInt32(frames), &abl)
-        }
-    }
-
     func tick() {
+        if recording, let failure = recordingWriter.failure { stopRecording(failure: failure) }
         ticks += 1
         if ticks % 10 == 0 {
             if HAL.device(uid: Brand.micUID) != micDevice { listenerDevice = nil; rebuild() }

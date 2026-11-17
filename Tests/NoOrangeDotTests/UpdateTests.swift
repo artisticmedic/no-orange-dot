@@ -8,6 +8,16 @@ final class UpdateTests: XCTestCase {
         try UpdateCheck.parse(Data(json.utf8), current: current, system: system)
     }
 
+    func testInstallerHandoffAllowsRetryAndRecheck() {
+        let release = Release(version: "0.2.0", url: "https://example.com/a.pkg")
+        let handedOff = Updater.State.installing(release)
+        XCTAssertFalse(handedOff.busy, "Installer cancellation must not leave the app busy forever")
+        XCTAssertEqual(handedOff.available, release, "the Install button remains available for a retry")
+        XCTAssertTrue(Updater.State.downloading(release).busy)
+        XCTAssertNil(Updater.State.downloading(release).available)
+        XCTAssertTrue(Updater.State.checking.busy)
+    }
+
     func testVersionOrder() {
         XCTAssertTrue(Version.isNewer("0.2.0", than: "0.1.9"))
         XCTAssertTrue(Version.isNewer("1.10", than: "1.9.5"))
