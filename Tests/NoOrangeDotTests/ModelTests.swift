@@ -9,6 +9,9 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(d.gateHoldMs, Dynamics().gateHoldMs)
         XCTAssertEqual(d.limiterCeilingDB, -1)
         XCTAssertFalse(d.limiterOn)
+        XCTAssertFalse(d.deessOn)
+        XCTAssertEqual(d.deessAmountDB, 6)
+        XCTAssertEqual(d.deessFreq, 5000)
     }
 
     func testBandFillsMissingKeysAndRoundTrips() throws {

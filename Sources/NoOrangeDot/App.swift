@@ -625,7 +625,7 @@ struct EditorView: View {
                 Toggle("Use as the Mac's microphone", isOn: Binding(get: { engine.isSystemMicrophone }, set: { engine.setSystemMicrophone($0) })).labelsHidden().toggleStyle(.switch)
             }
             RowDivider()
-            Row(title: "Output level", caption: "Applied after the EQ, gate and compressor.") { EmptyView() }
+            Row(title: "Output level", caption: "Applied after the EQ, gate, compressor and de-esser.") { EmptyView() }
             SliderRow(label: "Level", value: String(format: "%+.1f dB", engine.outputGainDB), binding: $engine.outputGainDB, range: -12...12).padding(.bottom, 6)
             if let ms = engine.lastWakeMs {
                 RowDivider()
@@ -737,6 +737,17 @@ struct DynamicsView: View {
                 SliderRow(label: "Attack", value: String(format: "%.0f ms", engine.dynamics.compAttackMs), binding: $engine.dynamics.compAttackMs, range: 0.5...50)
                 SliderRow(label: "Release", value: String(format: "%.0f ms", engine.dynamics.compReleaseMs), binding: $engine.dynamics.compReleaseMs, range: 20...600)
                 SliderRow(label: "Makeup", value: String(format: "%+.1f dB", engine.dynamics.compMakeupDB), binding: $engine.dynamics.compMakeupDB, range: 0...18).padding(.bottom, 6)
+            }
+            RowDivider()
+            Live(engine.meters) { m in
+            Row(title: "De-esser", caption: engine.dynamics.deessOn && engine.running && m.deessDB > 0.1
+                ? String(format: "Softened an S by %.1f dB.", m.deessDB) : "Softens sharp S sounds.") {
+                Toggle("De-esser", isOn: $engine.dynamics.deessOn).labelsHidden().toggleStyle(.switch)
+            }
+            }
+            if engine.dynamics.deessOn {
+                SliderRow(label: "Amount", value: String(format: "Up to %.0f dB", engine.dynamics.deessAmountDB), binding: $engine.dynamics.deessAmountDB, range: 2...12)
+                SliderRow(label: "Frequency", value: String(format: "%.1f kHz", engine.dynamics.deessFreq / 1000), binding: $engine.dynamics.deessFreq, range: 3000...10000).padding(.bottom, 6)
             }
             RowDivider()
             Live(engine.meters) { m in

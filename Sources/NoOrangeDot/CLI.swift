@@ -3,7 +3,7 @@ import Foundation
 /// Command-line control, so scripts and agents can do everything the windows can.
 /// Settings verbs edit config.json, which the running app re-reads within half a second.
 enum CLI {
-    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "crashes", "open", "help", "--help", "-h"]
+    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "deess", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "crashes", "open", "help", "--help", "-h"]
 
     static let help = """
     nod: control \(Brand.name)
@@ -13,7 +13,7 @@ enum CLI {
       nod mute on|off|toggle
       nod eq on|off
       nod preset warm|flat               a starting curve for the EQ
-      nod preset list                    saved sounds: EQ, gate, compressor, limiter and output level
+      nod preset list                    saved sounds: EQ, gate, compressor, de-esser, limiter and output level
       nod preset save <name>             save the current sound, or replace the preset with that name
       nod preset use <name or number>
       nod preset delete <name or number>
@@ -23,6 +23,7 @@ enum CLI {
       nod band remove <n>
       nod gate on|off [threshold=-50] [range=-30]
       nod comp on|off [threshold=-18] [ratio=3] [attack=8] [release=150] [makeup=0]
+      nod deess on|off [amount=6] [freq=5000]   soften sharp S sounds above freq, by up to amount dB
       nod limiter on|off [ceiling=-1]    catch peaks before they clip
       nod record start|stop|toggle
       nod shortcut list                     every command that can have a shortcut; none are set to begin with
@@ -64,8 +65,8 @@ enum CLI {
       nod open                           open the editor window
       nod cli status|install|remove|test put this command on your path, and check it works
 
-    Each microphone keeps its own EQ, gate, compressor and output level. The eq, preset, band,
-    gate, comp and output commands change the microphone in use.
+    Each microphone keeps its own EQ, gate, compressor, de-esser and output level. The eq, preset,
+    band, gate, comp, deess and output commands change the microphone in use.
 
     Band types: highPass, lowShelf, bell, highShelf, lowPass. Bands are numbered from 1.
     Settings live in \(Settings.file.path)
@@ -249,7 +250,7 @@ enum CLI {
             guard rest.isEmpty else { return fail("Use: nod mics, or nod mics include|exclude|move <name> [place]") }
             let other = Set(s.mics.keys).union(names.keys).filter { !$0.isEmpty && !s.micOrder.contains($0) }.sorted { name($0) < name($1) }
             for (i, uid) in (s.micOrder + other).enumerated() {
-                let sound = s.mics[uid].map { p in "  (\(p.bands.filter(\.on).count) bands\(p.dynamics.gateOn ? ", gate" : "")\(p.dynamics.compOn ? ", compressor" : ""))" } ?? ""
+                let sound = s.mics[uid].map { p in "  (\(p.bands.filter(\.on).count) bands\(p.dynamics.gateOn ? ", gate" : "")\(p.dynamics.compOn ? ", compressor" : "")\(p.dynamics.deessOn ? ", de-esser" : ""))" } ?? ""
                 let rank = i < s.micOrder.count ? "\(i + 1)." : "–"
                 let membership = i < s.micOrder.count ? "" : "  (not included)"
                 print("\(uid == s.inputUID ? "*" : " ") \(rank) \(name(uid))\(membership)\(names[uid] == nil ? "  (not plugged in)" : "")\(sound)")
@@ -418,6 +419,11 @@ enum CLI {
                     case "makeup": s.active.dynamics.compMakeupDB = try num(v)
                     default: throw Bad("Unknown compressor setting \"\(k)\"")
                     }
+                }
+            case "deess":
+                s.active.dynamics.deessOn = try onOff(rest.first, "nod deess on|off [amount=6] [freq=5000]")
+                for (k, v) in try pairs(rest.dropFirst()) {
+                    switch k { case "amount": s.active.dynamics.deessAmountDB = try num(v); case "freq": s.active.dynamics.deessFreq = try num(v); default: throw Bad("Unknown de-esser setting \"\(k)\"") }
                 }
             case "band":
                 switch rest.first {

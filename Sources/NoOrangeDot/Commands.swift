@@ -27,6 +27,7 @@ struct MenuCommand: Identifiable, Equatable {
         MenuCommand(id: "clear-history", menu: "Sound", title: "Clear Earlier Curves"),
         MenuCommand(id: "gate", menu: "Sound", title: "Noise Gate"),
         MenuCommand(id: "compressor", menu: "Sound", title: "Compressor"),
+        MenuCommand(id: "deesser", menu: "Sound", title: "De-esser"),
         MenuCommand(id: "limiter", menu: "Sound", title: "Limiter"),
         MenuCommand(id: "output-up", menu: "Sound", title: "Raise Output Level"),
         MenuCommand(id: "output-down", menu: "Sound", title: "Lower Output Level"),

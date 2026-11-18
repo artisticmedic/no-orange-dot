@@ -96,7 +96,7 @@ struct MenuPanelContent: View {
 
     private var summary: String {
         let d = engine.dynamics
-        let extras = [d.gateOn ? "Gate" : nil, d.compOn ? "Compressor" : nil].compactMap { $0 }
+        let extras = [d.gateOn ? "Gate" : nil, d.compOn ? "Compressor" : nil, d.deessOn ? "De-esser" : nil].compactMap { $0 }
         let mic = engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "No microphone"
         return extras.isEmpty ? mic : "\(mic)  ·  \(extras.joined(separator: " + "))"
     }

@@ -96,6 +96,9 @@ struct Dynamics: Codable, Equatable {
     var compMakeupDB = 0.0
     var limiterOn = false
     var limiterCeilingDB = -1.0   // nothing leaves louder than this
+    var deessOn = false
+    var deessAmountDB = 6.0       // the most an S is turned down
+    var deessFreq = 5000.0        // where the highs that get turned down begin
 
     init() {}
     init(from decoder: Decoder) throws {
@@ -114,6 +117,9 @@ struct Dynamics: Codable, Equatable {
         compMakeupDB = try c.decodeIfPresent(Double.self, forKey: .compMakeupDB) ?? d.compMakeupDB
         limiterOn = try c.decodeIfPresent(Bool.self, forKey: .limiterOn) ?? d.limiterOn
         limiterCeilingDB = try c.decodeIfPresent(Double.self, forKey: .limiterCeilingDB) ?? d.limiterCeilingDB
+        deessOn = try c.decodeIfPresent(Bool.self, forKey: .deessOn) ?? d.deessOn
+        deessAmountDB = try c.decodeIfPresent(Double.self, forKey: .deessAmountDB) ?? d.deessAmountDB
+        deessFreq = try c.decodeIfPresent(Double.self, forKey: .deessFreq) ?? d.deessFreq
         try validate()
     }
 
@@ -135,6 +141,8 @@ struct Dynamics: Codable, Equatable {
         ("Compressor release", \.compReleaseMs, 0 ... 60000),
         ("Compressor makeup", \.compMakeupDB, -60 ... 60),
         ("Limiter ceiling", \.limiterCeilingDB, -120 ... 0),
+        ("De-esser amount", \.deessAmountDB, 0 ... 40),
+        ("De-esser frequency", \.deessFreq, 1000 ... 20000),
     ]
 
     func validate() throws {
@@ -144,7 +152,7 @@ struct Dynamics: Codable, Equatable {
     }
 }
 
-/// Realtime chain: EQ, then noise gate, then compressor, then output gain, then the limiter. Stereo, with linked dynamics.
+/// Realtime chain: EQ, then noise gate, then compressor, then de-esser, then output gain, then the limiter. Stereo, with linked dynamics.
 /// `set` runs on the main thread; `process` runs on the audio thread and never blocks.
 final class DSPChain {
     static let maxBands = 8
@@ -153,6 +161,7 @@ final class DSPChain {
         var gain: Float = 1
         var dyn = Dynamics()
         var sampleRate = 48000.0
+        var splitLow = Coeffs(), splitHigh = Coeffs()
     }
     private let live = UnsafeMutablePointer<Double>.allocate(capacity: maxBands * 5)
     private let pending = UnsafeMutablePointer<Double>.allocate(capacity: maxBands * 5)
@@ -169,11 +178,18 @@ final class DSPChain {
     private var limGain: Float = 1, limRel: Float = 0, limCeil: Float = 1
     /// Largest amount (dB, positive) the limiter has pulled a peak down since the UI last read it.
     var limiterMeter: Float = 0
+    // De-esser: a Linkwitz-Riley split, whose low and high halves add back up to the original level,
+    // so turning only the high half down leaves the voice below the split untouched.
+    private let splitState = UnsafeMutablePointer<Double>.allocate(capacity: 16) // 4 biquads × z1, z2 per channel
+    private var essHigh = 0.0, essFull = 0.0, essGR = 0.0, essAvg = 0.0, essAtt = 0.0, essRel = 0.0
+    /// Largest amount (dB, positive) the de-esser has turned an S down since the UI last read it.
+    var deessMeter: Float = 0
 
     init() {
         live.initialize(repeating: 0, count: Self.maxBands * 5)
         pending.initialize(repeating: 0, count: Self.maxBands * 5)
         state.initialize(repeating: 0, count: Self.maxBands * 4)
+        splitState.initialize(repeating: 0, count: 16)
         lock.initialize(to: os_unfair_lock())
     }
 
@@ -186,8 +202,11 @@ final class DSPChain {
             pending[i * 5 + 3] = c.a1; pending[i * 5 + 4] = c.a2
         }
         var d = dynamics
-        if bypass { d.gateOn = false; d.compOn = false }
-        pendingP = Params(count: active.count, gain: Float(pow(10, outputGainDB / 20)), dyn: d, sampleRate: sampleRate)
+        if bypass { d.gateOn = false; d.compOn = false; d.deessOn = false }
+        let q = 0.5.squareRoot()
+        pendingP = Params(count: active.count, gain: Float(pow(10, outputGainDB / 20)), dyn: d, sampleRate: sampleRate,
+                          splitLow: Coeffs.make(Band(type: .lowPass, freq: d.deessFreq, gainDB: 0, q: q), sampleRate: sampleRate),
+                          splitHigh: Coeffs.make(Band(type: .highPass, freq: d.deessFreq, gainDB: 0, q: q), sampleRate: sampleRate))
         dirty = true
         os_unfair_lock_unlock(lock)
     }
@@ -195,6 +214,7 @@ final class DSPChain {
     private func adopt() {
         memcpy(live, pending, MemoryLayout<Double>.size * Self.maxBands * 5)
         if pendingP.count != p.count { memset(state, 0, MemoryLayout<Double>.size * Self.maxBands * 4) }
+        if pendingP.dyn.deessOn && !p.dyn.deessOn { memset(splitState, 0, MemoryLayout<Double>.size * 16); essHigh = 0; essFull = 0 }
         p = pendingP
         let sr = p.sampleRate
         func coef(_ ms: Double) -> Double { exp(-1 / (max(ms, 0.05) * 0.001 * sr)) }
@@ -207,6 +227,22 @@ final class DSPChain {
         if !p.dyn.compOn { compGR = 0 }
         limRel = Float(coef(80)); limCeil = Float(pow(10, min(p.dyn.limiterCeilingDB, 0) / 20))
         if !p.dyn.limiterOn { limGain = 1 }
+        essAvg = coef(5); essAtt = coef(1); essRel = coef(60)
+        if !p.dyn.deessOn { essGR = 0 }
+    }
+
+    @inline(__always) private static func tick(_ c: Coeffs, _ z: UnsafeMutablePointer<Double>, _ x: Double) -> Double {
+        let y = c.b0 * x + z[0]
+        z[0] = c.b1 * x - c.a1 * y + z[1]
+        z[1] = c.b2 * x - c.a2 * y
+        return y
+    }
+
+    @inline(__always) private func split(_ x: Double, channel: Int) -> (low: Double, high: Double) {
+        let z = splitState + channel * 8
+        let low = Self.tick(p.splitLow, z + 2, Self.tick(p.splitLow, z, x))
+        let high = Self.tick(p.splitHigh, z + 6, Self.tick(p.splitHigh, z + 4, x))
+        return (low, high)
     }
 
     func process(_ l: UnsafeMutablePointer<Float>, _ r: UnsafeMutablePointer<Float>, frames: Int, stereo: Bool) {
@@ -259,6 +295,40 @@ final class DSPChain {
                 if stereo { r[n] *= gf }
             }
             reductionMeter = Float(maxGR)
+        }
+
+        // An S puts most of its energy above the split, a vowel very little. The more of the sound sits up
+        // there, the further the high half is turned down. Room noise between phrases is mostly highs too, so
+        // nothing quieter than speech is touched.
+        if p.dyn.deessOn {
+            func unit(_ v: Double) -> Double { min(max(v, 0), 1) }
+            var most = Double(deessMeter)
+            for n in 0..<frames {
+                let xl = Double(l[n])
+                let left = split(xl, channel: 0)
+                var right = (low: 0.0, high: 0.0)
+                var high2 = left.high * left.high, full2 = xl * xl
+                if stereo {
+                    let xr = Double(r[n])
+                    right = split(xr, channel: 1)
+                    high2 = max(high2, right.high * right.high); full2 = max(full2, xr * xr)
+                }
+                essHigh = essAvg * essHigh + (1 - essAvg) * high2
+                essFull = essAvg * essFull + (1 - essAvg) * full2
+                let highDB = 10 * log10(max(essHigh, 1e-20))
+                let shareDB = highDB - 10 * log10(max(essFull, 1e-20))
+                let target = p.dyn.deessAmountDB * unit((shareDB + 15) / 12) * unit((highDB + 55) / 10)
+                let c = target > essGR ? essAtt : essRel
+                essGR = c * essGR + (1 - c) * target
+                if essGR > most { most = essGR }
+                let g = pow(10, -essGR / 20)
+                l[n] = Float(left.low + g * left.high)
+                if stereo { r[n] = Float(right.low + g * right.high) }
+            }
+            for i in 0..<16 where abs(splitState[i]) < 1e-30 { splitState[i] = 0 }
+            if essHigh < 1e-30 { essHigh = 0 }
+            if essFull < 1e-30 { essFull = 0 }
+            deessMeter = Float(most)
         }
 
         let g = p.gain

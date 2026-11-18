@@ -8,6 +8,7 @@ final class Meters: ObservableObject {
     @Published var playbackVoice = VoiceLevel.Reading(averageDB: -100, peakDB: -100)
     @Published var reductionDB: Float = 0
     @Published var limiterDB: Float = 0
+    @Published var deessDB: Float = 0
     @Published var auditionProgress = 0.0
 }
 

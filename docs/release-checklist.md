@@ -21,7 +21,7 @@ Use the single app in /Applications. Keep the person's current audio settings ba
 - [ ] Idle → call → idle: microphone opens on demand, closes after the last client, and accurately reports who is using it. Try Hex and a real call app.
 - [ ] Priority: include/exclude/reorder, restart persistence, unplug/replug preferred and fallback devices, and an empty priority list. Check that excluded-device arrival does not stop a take or interrupt the active source.
 - [ ] Manual input choice stays separate from priority. A preferred mic reconnecting resumes automatic priority; absent preferred mics retain the current connected fallback.
-- [ ] Audio: gate/compressor/limiter, headphones, changing 44.1/48/96 kHz inputs, sleep/wake, and an app continuing to use the virtual mic through a device switch.
+- [ ] Audio: gate/compressor/de-esser/limiter, headphones, changing 44.1/48/96 kHz inputs, sleep/wake, and an app continuing to use the virtual mic through a device switch.
 - [ ] Mute: check call output, recording, and monitoring separately. State the intended behavior in the UI/help; do not assume all three paths are identical.
 - [ ] Record: repeated short takes, stop-then-immediate-quit while a client keeps the engine running, pause/resume, playback and raw comparison, folder failures, and deletion/recovery.
 - [ ] Voice check: play the reference and a real take at the same system volume; test quiet/loud speech, mute/close stopping the live check, recording selection during playback, and a Mac without the reference voice installed. The guide uses average signal level in dBFS, not LUFS or calibrated room loudness.

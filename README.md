@@ -21,7 +21,7 @@ The orange dot still appears while an app is using the mic. It goes away when th
 ## Features
 
 - Parametric EQ with up to 8 bands and a draggable curve, with undo and a history of earlier curves
-- Noise gate, compressor and a limiter that catches peaks before they clip
+- Noise gate, compressor, a de-esser that softens sharp S sounds, and a limiter that catches peaks before they clip
 - Mute, which closes the real microphone
 - Record to a WAV file in `~/Music/No Orange Dot/`
 - Presets: save whole sounds in a list, loop one recording, and click down the list to hear each on the same words
@@ -52,6 +52,7 @@ nod status
 nod mute toggle
 nod band set 3 freq=450 gain=-2.5
 nod comp on threshold=-18 ratio=3
+nod deess on amount=6
 nod limiter on ceiling=-1
 nod record toggle
 nod shortcut mute ctrl+opt+cmd+m

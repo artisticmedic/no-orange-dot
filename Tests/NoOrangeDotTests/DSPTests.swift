@@ -88,7 +88,7 @@ final class DSPTests: XCTestCase {
 
     func testBypassPassesAudioUnchanged() {
         let input = sine(440, db: -12, seconds: 0.2)
-        let out = run(chain(bands: Presets.warm, { $0.gateOn = true; $0.compOn = true }, bypass: true), input)
+        let out = run(chain(bands: Presets.warm, { $0.gateOn = true; $0.compOn = true; $0.deessOn = true }, bypass: true), input)
         XCTAssertEqual(out, input)
     }
 
@@ -104,7 +104,7 @@ final class DSPTests: XCTestCase {
 
     func testBlockSizeDoesNotChangeTheSound() {
         let input = sine(300, db: -6, seconds: 0.5)
-        let edit: (inout Dynamics) -> Void = { $0.gateOn = true; $0.compOn = true; $0.limiterOn = true }
+        let edit: (inout Dynamics) -> Void = { $0.gateOn = true; $0.compOn = true; $0.deessOn = true; $0.limiterOn = true }
         let a = run(chain(bands: Presets.warm, edit), input, block: 64)
         let b = run(chain(bands: Presets.warm, edit), input, block: 1024)
         XCTAssertEqual(a, b)
@@ -172,10 +172,53 @@ final class DSPTests: XCTestCase {
     }
 
     func testSilenceStaysSilentAndFinite() {
-        let c = chain(bands: Presets.warm) { $0.gateOn = true; $0.compOn = true; $0.limiterOn = true }
+        let c = chain(bands: Presets.warm) { $0.gateOn = true; $0.compOn = true; $0.deessOn = true; $0.limiterOn = true }
         let out = run(c, [Float](repeating: 0, count: 48000))
         XCTAssertTrue(out.allSatisfy { $0 == 0 })
         let loud = run(c, [Float](repeating: 0, count: 100) + [Float.greatestFiniteMagnitude / 4] + [Float](repeating: 0, count: 4800))
         XCTAssertTrue(loud.allSatisfy(\.isFinite))
+    }
+
+    private func deesser(amount: Double = 6) -> DSPChain {
+        chain { $0.deessOn = true; $0.deessAmountDB = amount; $0.deessFreq = 5000 }
+    }
+
+    private func mix(_ a: [Float], _ b: [Float]) -> [Float] { zip(a, b).map { $0 + $1 } }
+
+    func testDeEsserTurnsDownSoundAboveTheSplit() {
+        let c = deesser()
+        let out = run(c, sine(9000, db: -20, seconds: 1))
+        let drop = -20 - sineDB(out[24000...])
+        XCTAssertGreaterThan(drop, 4.5)
+        XCTAssertLessThan(drop, 6.5)
+        XCTAssertGreaterThan(c.deessMeter, 5.5)
+    }
+
+    func testDeEsserLeavesVoicedSoundAlone() {
+        let c = deesser()
+        let out = run(c, sine(300, db: -14, seconds: 1))
+        XCTAssertEqual(sineDB(out[24000...]), -14, accuracy: 0.05)
+        XCTAssertLessThan(c.deessMeter, 0.1)
+    }
+
+    func testDeEsserKeepsTheAirInAVowel() {
+        let input = mix(sine(300, db: -14, seconds: 1), sine(9000, db: -40, seconds: 1))
+        let out = run(deesser(amount: 12), input)
+        XCTAssertEqual(sineDB(out[24000...]), sineDB(input[24000...]), accuracy: 0.05)
+    }
+
+    func testDeEsserLeavesRoomNoiseAlone() {
+        var seed: UInt32 = 1
+        let noise = (0..<48000).map { _ -> Float in seed = seed &* 1664525 &+ 1013904223; return (Float(seed) / Float(UInt32.max) - 0.5) * 0.006 }
+        let c = deesser(amount: 12)
+        _ = run(c, noise)
+        XCTAssertLessThan(c.deessMeter, 0.1)
+    }
+
+    func testDeEsserLetsGoAfterTheS() {
+        let vowel = mix(sine(300, db: -14, seconds: 0.5), sine(9000, db: -40, seconds: 0.5))
+        let input = sine(9000, db: -20, seconds: 0.5) + vowel
+        let out = run(deesser(amount: 12), input)
+        XCTAssertEqual(sineDB(out[36000...]), sineDB(input[36000...]), accuracy: 0.05)
     }
 }

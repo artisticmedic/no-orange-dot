@@ -2,6 +2,7 @@
 
 ## 0.1.2 — pending public release
 
+- Add a de-esser that softens sharp S sounds. It turns down only the highs above a frequency you choose, only while an S is sounding. Turn it on from the Sound page, the Sound menu or `nod deess on`.
 - Compare your voice with a fixed-level spoken reference on the Sound page. Check the live processed signal or a recording against a speaking range, with separate peak warnings and an output-level control.
 - Recording controls now show the timer, pause, mute and stop in the top bar, followed by a saved confirmation. Choose which recording to use when comparing presets.
 - Finish pending recording-file writes before quitting, and give rapid successive takes unique filenames.

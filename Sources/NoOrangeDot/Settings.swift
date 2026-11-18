@@ -23,7 +23,7 @@ struct MicProfile: Codable, Equatable {
     }
 }
 
-/// A whole sound saved under a name: EQ, gate, compressor, limiter and output level. Presets belong to no
+/// A whole sound saved under a name: EQ, gate, compressor, de-esser, limiter and output level. Presets belong to no
 /// one microphone, so the same one can be tried on any of them or on a recording.
 struct SoundPreset: Codable, Identifiable, Equatable {
     var id = UUID()   // in-memory only
@@ -62,6 +62,7 @@ struct SoundPreset: Codable, Identifiable, Equatable {
         var parts = [equalizer ? "\(on) band\(on == 1 ? "" : "s")" : "EQ off"]
         if dynamics.gateOn { parts.append("gate") }
         if dynamics.compOn { parts.append("compressor") }
+        if dynamics.deessOn { parts.append("de-esser") }
         if dynamics.limiterOn { parts.append("limiter") }
         if outputGainDB != 0 { parts.append(String(format: "%+.1f dB", outputGainDB)) }
         return parts.joined(separator: " · ")

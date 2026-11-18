@@ -226,6 +226,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
             cmd("gate", on: { e.dynamics.gateOn }) { e.dynamics.gateOn.toggle() },
             cmd("compressor", on: { e.dynamics.compOn }) { e.dynamics.compOn.toggle() },
             sub("Compressor Setting", compressor),
+            cmd("deesser", on: { e.dynamics.deessOn }) { e.dynamics.deessOn.toggle() },
             cmd("limiter", on: { e.dynamics.limiterOn }) { e.dynamics.limiterOn.toggle() },
             .separator(),
             cmd("output-up") { e.outputGainDB = min(e.outputGainDB + 1, 12) },
@@ -352,7 +353,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
     private func savePreset() {
         let alert = NSAlert()
         alert.messageText = "Save the current sound as a preset"
-        alert.informativeText = "A preset saves the EQ, gate, compressor, limiter and output level."
+        alert.informativeText = "A preset saves the EQ, gate, compressor, de-esser, limiter and output level."
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
         field.placeholderString = "Name"
         alert.accessoryView = field

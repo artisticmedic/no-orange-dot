@@ -81,10 +81,15 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try nod("comp", "on", "ratio=4", "threshold=-20").code, 0)
         XCTAssertEqual(try nod("gate", "on", "hold=200").code, 0)
         XCTAssertEqual(try nod("limiter", "on", "ceiling=3").code, 0)
+        XCTAssertEqual(try nod("deess", "on", "amount=8", "freq=6500").code, 0)
         let dyn = try XCTUnwrap(find("dynamics", in: try settings()) as? [String: Any])
         XCTAssertEqual(dyn["compRatio"] as? Double, 4)
         XCTAssertEqual(dyn["gateHoldMs"] as? Double, 200)
         XCTAssertEqual(dyn["limiterCeilingDB"] as? Double, 0, "a ceiling above 0 dB would clip")
+        XCTAssertEqual(dyn["deessOn"] as? Bool, true)
+        XCTAssertEqual(dyn["deessAmountDB"] as? Double, 8)
+        XCTAssertEqual(dyn["deessFreq"] as? Double, 6500)
+        XCTAssertEqual(try nod("deess", "on", "speed=4").code, 1)
         XCTAssertEqual(try nod("comp", "on", "speed=4").code, 1)
     }
 
@@ -100,6 +105,9 @@ final class CLITests: XCTestCase {
             XCTAssertEqual(try nod("comp", "on", option).code, 1, option)
         }
         XCTAssertEqual(try nod("limiter", "on", "ceiling=-1e308").code, 1)
+        for option in ["amount=-1", "amount=1e308", "freq=20", "freq=1e308"] {
+            XCTAssertEqual(try nod("deess", "on", option).code, 1, option)
+        }
         XCTAssertEqual(try Data(contentsOf: config), before)
     }
 

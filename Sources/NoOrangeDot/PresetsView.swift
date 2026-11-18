@@ -12,7 +12,7 @@ struct PresetsCard: View {
 
     var body: some View {
         Card {
-            Row(title: "Presets", caption: "A preset saves the EQ, gate, compressor, limiter and output level.") {
+            Row(title: "Presets", caption: "A preset saves the EQ, gate, compressor, de-esser, limiter and output level.") {
                 Button { name = suggestedName; naming = true } label: { Label("Save Current…", systemImage: "plus") }.buttonStyle(PillButtonStyle())
             }
             let current = engine.currentPreset

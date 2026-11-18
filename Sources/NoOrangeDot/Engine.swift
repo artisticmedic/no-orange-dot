@@ -444,6 +444,7 @@ final class Engine: ObservableObject {
         meters.voice = voiceLevel.reading
         meters.level = 0
         meters.reductionDB = 0
+        meters.deessDB = 0
     }
 
     // MARK: Audio thread
@@ -519,6 +520,7 @@ final class Engine: ObservableObject {
         meters.level = peak; peak = 0
         meters.reductionDB = dsp.reductionMeter; dsp.reductionMeter = 0
         meters.limiterDB = dsp.limiterMeter; dsp.limiterMeter = 0
+        meters.deessDB = dsp.deessMeter; dsp.deessMeter = 0
         if monitoring, auditioning == nil { analyze(raw: rawRing, post: postRing, end: ringIndex, rate: sampleRate) }
         if captureFlag { measureProgress = Double(captureCount) / Double(max(captureGoal, 1)); if captureCount >= captureGoal { finishMeasure() } }
         if firstCallbackAt != 0, wakeRequestedAt != 0 {
