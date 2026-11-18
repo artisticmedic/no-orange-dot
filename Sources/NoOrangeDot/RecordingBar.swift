@@ -3,6 +3,7 @@ import SwiftUI
 /// Replaces the Record button while a take is running: the time so far, pause, mute and stop.
 struct RecordingControls: View {
     @EnvironmentObject var engine: Engine
+    @State private var stopHover = false
 
     var body: some View {
         HStack(spacing: 2) {
@@ -20,11 +21,15 @@ struct RecordingControls: View {
                     label: engine.recordingPaused ? "Resume recording" : "Pause recording") { engine.togglePause() }
             BarIcon(symbol: engine.muted ? "mic.slash.fill" : "mic.fill", label: engine.muted ? "Unmute" : "Mute",
                     tint: engine.muted ? .orange : .primary) { engine.muted.toggle() }
-            Button { engine.stopRecording() } label: { Label("Stop", systemImage: "stop.fill") }
-                .buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(.red)
-                .padding(.horizontal, 10).frame(height: 26)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.red.opacity(0.14)))
-                .accessibilityLabel("Stop recording and save it")
+            Button { engine.stopRecording() } label: {
+                Label("Stop", systemImage: "stop.fill")
+                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.red)
+                    .padding(.horizontal, 12).frame(height: 26)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.red.opacity(stopHover ? 0.24 : 0.14)))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).onHover { stopHover = $0 }
+            .accessibilityLabel("Stop recording and save it")
         }
         .padding(2).frame(minHeight: 30)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.red.opacity(0.07)))
