@@ -3,7 +3,7 @@ import Foundation
 /// Command-line control, so scripts and agents can do everything the windows can.
 /// Settings verbs edit config.json, which the running app re-reads within half a second.
 enum CLI {
-    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "deess", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "crashes", "open", "help", "--help", "-h"]
+    static let verbs: Set<String> = ["status", "get", "mute", "eq", "preset", "band", "gate", "comp", "deess", "tone", "input", "output", "mics", "name", "play", "auto-eq", "recordings", "cli", "record", "system", "icon", "appicon", "dock", "gain", "listen", "limiter", "shortcut", "history", "update", "crashes", "open", "help", "--help", "-h"]
 
     static let help = """
     nod: control \(Brand.name)
@@ -21,6 +21,8 @@ enum CLI {
       nod band set <n> [type=bell] [freq=480] [gain=-3] [q=0.7] [on=true]
       nod band add type=bell freq=1000 [gain=0] [q=1]
       nod band remove <n>
+      nod tone                           the plain-language tone controls and where each one is set
+      nod tone <control> <value>         rumble 20-120 Hz (20 is off); weight, body, box, words, edge in dB
       nod gate on|off [threshold=-50] [range=-30]
       nod comp on|off [threshold=-18] [ratio=3] [attack=8] [release=150] [makeup=0]
       nod deess on|off [amount=6] [freq=5000]   soften sharp S sounds above freq, by up to amount dB
@@ -425,6 +427,18 @@ enum CLI {
                 for (k, v) in try pairs(rest.dropFirst()) {
                     switch k { case "amount": s.active.dynamics.deessAmountDB = try num(v); case "freq": s.active.dynamics.deessFreq = try num(v); default: throw Bad("Unknown de-esser setting \"\(k)\"") }
                 }
+            case "tone":
+                guard let name = rest.first else { break }
+                guard let control = ToneControl.all.first(where: { $0.id == name }) else {
+                    throw Bad("Unknown tone control \"\(name)\". Use one of: \(ToneControl.all.map(\.id).joined(separator: ", "))")
+                }
+                guard rest.count == 2 else { throw Bad("Use: nod tone \(name) <value>, from \(Int(control.range.lowerBound)) to \(Int(control.range.upperBound))") }
+                let v = try num(rest[1])
+                guard control.range.contains(v) else { throw Bad("\(control.title) goes from \(Int(control.range.lowerBound)) to \(Int(control.range.upperBound)).") }
+                guard let bands = control.setting(v, in: s.active.bands) else {
+                    throw Bad("The EQ already has \(DSPChain.maxBands) bands. Remove one to use \(control.title).")
+                }
+                s.active.bands = bands
             case "band":
                 switch rest.first {
                 case "list": break
@@ -443,6 +457,7 @@ enum CLI {
             try s.active.dynamics.validate()
         }
         if verb == "band", result == 0 { return printBands() }
+        if verb == "tone", result == 0 { return printTone() }
         if verb == "preset", result == 0, ["list", "save", "delete"].contains(rest.first ?? ""), case .ok(let s) = Settings.load() {
             if s.presets.isEmpty { print("No presets yet. Save the current sound with: nod preset save <name>") }
             for (i, p) in s.presets.enumerated() { print("\(p.matches(s.active) ? "*" : " ") \(i + 1)  \(p.name)  (\(p.summary))") }
@@ -492,6 +507,15 @@ enum CLI {
         for (i, b) in s.active.bands.enumerated() {
             let type = b.type.rawValue.padding(toLength: 9, withPad: " ", startingAt: 0)
             print("\(i + 1)  \(type) " + String(format: "%8.1f Hz  %+5.1f dB  Q %.2f  ", b.freq, b.gainDB, b.q) + (b.on ? "on" : "off"))
+        }
+        return 0
+    }
+
+    private static func printTone() -> Int32 {
+        guard case .ok(let s) = Settings.load() else { return 1 }
+        for c in ToneControl.all {
+            let name = c.id.padding(toLength: 8, withPad: " ", startingAt: 0)
+            print("\(name)\(c.label(c.value(in: s.active.bands)).padding(toLength: 10, withPad: " ", startingAt: 0))\(c.less) to \(c.more)")
         }
         return 0
     }

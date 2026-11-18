@@ -11,7 +11,7 @@ struct EQView: View {
     private var live: Bool { engine.monitoring || engine.auditioning != nil }
 
     var body: some View {
-        VStack(spacing: 12) { curveCard; presetCard; PresetsCard(); voiceCard }
+        VStack(spacing: 12) { ToneCard(); curveCard; presetCard; PresetsCard(); voiceCard }
     }
 
     private var curveCard: some View {

@@ -90,6 +90,15 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(dyn["deessAmountDB"] as? Double, 8)
         XCTAssertEqual(dyn["deessFreq"] as? Double, 6500)
         XCTAssertEqual(try nod("deess", "on", "speed=4").code, 1)
+        try nod("preset", "warm")
+        XCTAssertEqual(try nod("tone", "weight", "4").code, 0)
+        XCTAssertEqual(try nod("tone", "body", "2").code, 0)
+        let bands = try XCTUnwrap(find("bands", in: try settings()) as? [[String: Any]])
+        XCTAssertEqual(bands[1]["gainDB"] as? Double, 4)
+        XCTAssertEqual(bands.last?["freq"] as? Double, 220)
+        XCTAssertEqual(try nod("tone", "weight", "40").code, 1)
+        XCTAssertEqual(try nod("tone", "loudness", "2").code, 1)
+        XCTAssertTrue(try nod("tone").out.contains("Lighter to Deeper"))
         XCTAssertEqual(try nod("comp", "on", "speed=4").code, 1)
     }
 
