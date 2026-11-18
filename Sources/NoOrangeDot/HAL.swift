@@ -160,8 +160,24 @@ enum HAL {
         return ids.compactMap { id in
             guard streamCount(id, kAudioObjectPropertyScopeInput) > 0,
                   let uid = string(id, kAudioDevicePropertyDeviceUID), let name = string(id, kAudioObjectPropertyName),
-                  !uid.hasPrefix("NoOrangeDot"), !uid.hasPrefix(Brand.bundleID) else { return nil }
+                  !uid.hasPrefix("NoOrangeDot"), !uid.hasPrefix(Brand.bundleID), !isPrivateAggregate(id, uid: uid) else { return nil }
             return Input(uid: uid, name: name)
         }
+    }
+
+    /// macOS builds a "CADefaultDeviceAggregate-<pid>-<n>" device for an app that plays audio, and drops it when that
+    /// app quits. Each launch makes new ones, so a saved one never comes back.
+    static func isTransient(_ uid: String) -> Bool { uid.hasPrefix("CADefaultDeviceAggregate") }
+
+    /// A private aggregate belongs to the process that made it, so it is never a microphone to offer.
+    static func isPrivateAggregate(_ id: AudioDeviceID, uid: String) -> Bool {
+        if isTransient(uid) { return true }
+        guard uint32(id, kAudioDevicePropertyTransportType) == kAudioDeviceTransportTypeAggregate else { return false }
+        var a = addr(kAudioAggregateDevicePropertyComposition)
+        var ref: Unmanaged<CFDictionary>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFDictionary>?>.size)
+        guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, &ref) == noErr,
+              let composition = ref?.takeRetainedValue() as? [String: Any] else { return false }
+        return (composition[kAudioAggregateDeviceIsPrivateKey] as? NSNumber)?.boolValue ?? false
     }
 }

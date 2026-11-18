@@ -16,9 +16,9 @@ extension Engine {
         return MicrophonePriority.select(order: micOrder, available: available, previouslyAvailable: available, manual: manualInputUID, current: inputUID)
     }
 
+    /// Connected microphones outside the priority list. An unplugged one can't stand in, so it isn't listed.
     var otherMicUIDs: [String] {
-        let known = Set(inputs.map(\.uid)).union(seenNames.keys).union(mics.keys)
-        return known.filter { !$0.isEmpty && !micOrder.contains($0) }.sorted {
+        Set(inputs.map(\.uid)).filter { !$0.isEmpty && !micOrder.contains($0) }.sorted {
             let a = micName(for: $0) ?? $0, b = micName(for: $1) ?? $1
             return a == b ? $0 < $1 : a.localizedStandardCompare(b) == .orderedAscending
         }

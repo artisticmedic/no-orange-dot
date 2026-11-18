@@ -185,7 +185,8 @@ struct Settings: Codable, Equatable {
             for uid in [chosen, inputUID] where !uid.isEmpty && !micOrder.contains(uid) { micOrder.append(uid) }
         }
         var seen = Set<String>()
-        micOrder = micOrder.filter { !$0.isEmpty && seen.insert($0).inserted }
+        micOrder = micOrder.filter { !$0.isEmpty && !HAL.isTransient($0) && seen.insert($0).inserted }
+        mics = mics.filter { !HAL.isTransient($0.key) }
         // Files from before per-microphone sound kept one set of values at the top level.
         if mics[inputUID] == nil, let bands = try old.decodeIfPresent([Band].self, forKey: .bands) {
             var p = MicProfile()

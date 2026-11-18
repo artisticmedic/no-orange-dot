@@ -78,4 +78,13 @@ final class ModelTests: XCTestCase {
         let kept = try JSONDecoder().decode(Settings.self, from: Data(#"{"inputUID":"b","micOrder":["a","b"]}"#.utf8))
         XCTAssertEqual(kept.micOrder, ["a", "b"])
     }
+
+    func testDevicesMacOSMakesPerLaunchAreDroppedWhenLoading() throws {
+        let json = #"{"inputUID":"xlr","micOrder":["xlr","CADefaultDeviceAggregate-9765-0"],"mics":{"xlr":{"name":"Wave"},"CADefaultDeviceAggregate-18478-1":{"name":"CADefaultDeviceAggregate-18478-1"}}}"#
+        let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
+        XCTAssertEqual(s.micOrder, ["xlr"])
+        XCTAssertEqual(Array(s.mics.keys), ["xlr"])
+        XCTAssertTrue(HAL.isTransient("CADefaultDeviceAggregate-93862-4"))
+        XCTAssertFalse(HAL.isTransient("BuiltInMicrophoneDevice"))
+    }
 }
