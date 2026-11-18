@@ -13,7 +13,7 @@ struct MenuCommand: Identifiable, Equatable {
 
     static let all: [MenuCommand] = [
         MenuCommand(id: mute, menu: "Microphone", title: "Mute or Unmute", global: true),
-        MenuCommand(id: "listen", menu: "Microphone", title: "Listen to Yourself"),
+        MenuCommand(id: "listen", menu: "Microphone", title: "Hear Myself"),
         MenuCommand(id: "mic-priority", menu: "Microphone", title: "Microphone Priority…"),
         MenuCommand(id: "system-mic", menu: "Microphone", title: "Use as the Mac's Microphone"),
         MenuCommand(id: "gain-up", menu: "Microphone", title: "Raise Mic Gain"),

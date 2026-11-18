@@ -6,6 +6,8 @@
 - Add a de-esser that softens sharp S sounds. It turns down only the highs above a frequency you choose, only while an S is sounding. Turn it on from the Sound page, the Sound menu or `nod deess on`.
 - Compare your voice with a fixed-level spoken reference on the Sound page. Check the live processed signal or a recording against a speaking range, with separate peak warnings and an output-level control.
 - Recording controls now show the timer, pause, mute and stop in the top bar, followed by a saved confirmation. Choose which recording to use when comparing presets.
+- The Voice level card says what it is measuring: your mic, a recording, the reference voice, or nothing. With the mic closed it reads "Mic off — start Check My Voice to see your level", with Check My Voice beside it.
+- Starting a recording stops any playback and the reference voice, and says so. Playback waits until the recording stops. Hear myself (formerly Listen) can stay on while recording, and the recording bar shows it.
 - The whole Stop button in the recording bar responds to clicks, not just its icon and label, and it highlights on hover.
 - Finish pending recording-file writes before quitting, and give rapid successive takes unique filenames.
 - Keep newer CLI or hand-edited settings when a GUI save is pending. Report failed saves instead of silently discarding them.

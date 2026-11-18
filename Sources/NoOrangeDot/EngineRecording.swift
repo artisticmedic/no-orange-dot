@@ -27,6 +27,14 @@ extension Engine {
             let take = try RecordingTake(url: url, sampleRate: sampleRate, stereo: stereoFlag)
             recordingWriter.attach(take)
         } catch { self.error = error.localizedDescription; return }
+        // A take is the mic alone: anything playing would also reach the speakers and the mic.
+        let interrupted = MainActor.assumeIsolated { () -> Bool in
+            let active = auditioning != nil || Playback.shared.playing != nil || ReferenceVoice.shared.isActive
+            stopPlaying()
+            ReferenceVoice.shared.stop()
+            return active
+        }
+        if interrupted { note("Stopped playback to record.") }
         recordedBefore = 0
         recordSegmentStart = Date()
         recordingPaused = false
@@ -104,6 +112,7 @@ extension Engine {
     /// Plays a recording's raw take through the current EQ, gate and compressor.
     func startAudition(_ r: Recording) {
         guard let raw = r.raw else { return }
+        guard !recording else { note("Stop recording to play a take."); return }
         stopAudition()
         player.loop = auditionLoop
         guard player.start(raw) else { error = "Couldn't play that recording."; return }

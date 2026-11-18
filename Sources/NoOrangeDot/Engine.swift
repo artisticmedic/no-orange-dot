@@ -23,6 +23,8 @@ final class Engine: ObservableObject {
     @Published var selectedBand: UUID?
     @Published var lastWakeMs: Double?
     @Published var error: String?
+    /// A passing remark, such as why playback stopped. It clears itself.
+    @Published var notice: String?
     @Published var inputs: [HAL.Input] = []
     @Published var lastRecording: URL?
     @Published var stereoInput = false
@@ -99,6 +101,8 @@ final class Engine: ObservableObject {
     @Published var justSaved: Recording?
     var recordedBefore: TimeInterval = 0
     var shuttingDown = false
+    /// Set by `--render`, which draws the windows and must never open the mic or feed the virtual one.
+    nonisolated(unsafe) static var renderOnly = false
     /// Recording files still waiting to be closed. Quitting waits for them.
     let pendingCloses = RecordingFinalizer()
     var recordSegmentStart: Date?
@@ -420,13 +424,13 @@ final class Engine: ObservableObject {
     }
 
     func evaluate() {
-        guard !shuttingDown else { return }
+        guard !shuttingDown, !Self.renderOnly else { return }
         let want = (clientsActive && !muted) || (recording && !recordingPaused) || monitoring || listenBack || checkingVoice
         if want && !running { start() } else if !want && running { stop() }
     }
 
     func start() {
-        guard let p = ioProc, aggregate != kAudioObjectUnknown else { return }
+        guard !Self.renderOnly, let p = ioProc, aggregate != kAudioObjectUnknown else { return }
         firstCallbackAt = 0
         wakeRequestedAt = mach_absolute_time()
         let err = AudioDeviceStart(aggregate, p)

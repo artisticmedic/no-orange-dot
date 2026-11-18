@@ -22,43 +22,59 @@ struct VoiceCheckCard: View {
     }
     private var playing: Bool { engine.auditioning != nil || playback.playing != nil }
 
+    private var noMicrophone: Bool { !engine.driverInstalled || engine.inputUID.isEmpty }
+
+    /// What the meter is measuring, and what to do when it is measuring nothing.
+    private var source: (title: String, detail: String) {
+        switch reference.state {
+        case .preparing: return ("Preparing the reference voice…", "It plays at a fixed level.")
+        case .playing: return ("Reference voice", "Speak at about this level, at the same listening volume.")
+        default: break
+        }
+        if playing { return ("Your recording", pick?.raw != nil ? "Playing through your current sound." : "Playing as saved. Output changes apply to your next recording.") }
+        if noMicrophone { return ("No microphone available", "Choose a microphone in the sidebar.") }
+        if engine.muted { return ("Mic muted", "Unmute to see your level.") }
+        if engine.checkingVoice, engine.running { return ("Mic open for voice check", "Speak from your usual distance. Nothing is played back.") }
+        if engine.running { return ("Mic open", "Measured after EQ and dynamics.") }
+        return ("Mic off — start Check My Voice to see your level.", "The mic stays closed until something uses it.")
+    }
+
     var body: some View {
         Card {
-            Row(title: "How loud is my voice?", caption: "Compare at the same headphone or speaker volume.") {
-                Button {
-                    if referenceActive { reference.stop() }
-                    else {
+            Row(title: "Voice level", caption: "Compare at the same headphone or speaker volume.") {
+                HStack(spacing: 8) {
+                    Button {
+                        reference.stop()
                         engine.stopPlaying()
-                        engine.checkingVoice = false
-                        reference.toggle()
+                        engine.checkingVoice.toggle()
+                    } label: {
+                        Label(engine.checkingVoice ? "Stop Check" : "Check My Voice", systemImage: engine.checkingVoice ? "stop.fill" : "mic")
                     }
-                } label: {
-                    Label(referenceLabel, systemImage: referenceActive ? "stop.fill" : "speaker.wave.2")
+                    .buttonStyle(PillButtonStyle(prominent: !engine.running && !engine.checkingVoice && !playing))
+                    .disabled((engine.muted || noMicrophone) && !engine.checkingVoice)
+                    Button {
+                        if referenceActive { reference.stop() }
+                        else {
+                            engine.stopPlaying()
+                            engine.checkingVoice = false
+                            reference.toggle()
+                        }
+                    } label: {
+                        Label(referenceLabel, systemImage: referenceActive ? "stop.fill" : "speaker.wave.2")
+                    }
+                    .buttonStyle(PillButtonStyle())
+                    .disabled(engine.recording || engine.listenBack)
+                    .help("Play a spoken sample at a fixed level.")
                 }
-                .buttonStyle(PillButtonStyle())
-                .disabled(engine.recording || engine.listenBack)
-                .help("Play a spoken sample at a fixed level.")
             }
             Live(engine.meters) { meters in
                 let reading = engine.auditioning != nil ? meters.playbackVoice : playback.playing != nil ? playback.voice : meters.voice
-                VoiceLevelDisplay(reading: reading, active: playing || (engine.running && !engine.muted),
-                                  label: meterLabel, suppressed: referenceActive || (!playing && engine.muted))
+                let active = playing || (engine.running && !engine.muted)
+                VoiceLevelDisplay(reading: reading, active: active, label: source.title,
+                                  detail: active && !referenceActive ? source.title + " · " + source.detail : source.detail,
+                                  suppressed: referenceActive || (!playing && engine.muted))
             }
             .padding(.horizontal, 14).padding(.bottom, 12)
-            RowDivider()
-            Row(title: "Check your microphone", caption: engine.checkingVoice
-                ? "Speak from your usual distance. This opens the mic without playing it back."
-                : "Play the reference, then speak from your usual distance.") {
-                Button {
-                    reference.stop()
-                    engine.stopPlaying()
-                    engine.checkingVoice.toggle()
-                } label: {
-                    Label(engine.checkingVoice ? "Stop Check" : "Check My Voice", systemImage: engine.checkingVoice ? "stop.fill" : "mic")
-                }
-                .buttonStyle(PillButtonStyle())
-                .disabled(engine.muted && !engine.checkingVoice)
-            }
             if let pick {
                 RowDivider()
                 Row(title: "Compare your recording") {
@@ -108,7 +124,7 @@ struct VoiceCheckCard: View {
                 .font(.system(size: 12)).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
             if engine.recording || engine.listenBack {
-                Text(engine.recording ? "Stop recording before playing the reference." : "Turn off Listen to compare with the reference on its own.")
+                Text(engine.recording ? "Stop recording before playing the reference." : "Turn off Hear myself to compare with the reference on its own.")
                     .font(.system(size: 13)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
             }
@@ -128,23 +144,13 @@ struct VoiceCheckCard: View {
         .onChange(of: engine.auditioning) { _, url in if url != nil { reference.stop() } }
         .onChange(of: engine.recording) { _, recording in if recording { reference.stop() } }
     }
-
-    private var meterLabel: String {
-        switch reference.state {
-        case .preparing: return "Preparing reference voice…"
-        case .playing: return "Listen to the reference"
-        default: break
-        }
-        if playing { return "Your recording" }
-        if engine.muted { return "Mic muted · Unmute to check your output" }
-        return engine.running ? "Your microphone" : "Ready when you are"
-    }
 }
 
 struct VoiceLevelDisplay: View {
     let reading: VoiceLevel.Reading
     var active = true
     var label = "Your microphone"
+    var detail: String?
     var suppressed = false
 
     private var hasSignal: Bool { active && !suppressed && reading.averageDB > VoiceLevel.signalFloorDB }
@@ -174,10 +180,13 @@ struct VoiceLevelDisplay: View {
                         .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
+            if let detail {
+                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.08))
-                    Rectangle().fill(Color.green.opacity(0.22))
+                    Rectangle().fill(Color.green.opacity(active && !suppressed ? 0.22 : 0.07))
                         .frame(width: g.size.width * (fraction(-16) - fraction(-24)))
                         .offset(x: g.size.width * fraction(-24))
                     if hasSignal {

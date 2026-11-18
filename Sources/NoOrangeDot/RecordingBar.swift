@@ -13,10 +13,11 @@ struct RecordingControls: View {
                     Text(Recording.clock(engine.recordingElapsed)).font(.system(size: 13, weight: .semibold).monospacedDigit())
                 }
                 if engine.recordingPaused { Text("Paused").font(.system(size: 13)).foregroundStyle(.secondary) }
+                if engine.listenBack { Text("· Hear myself on").font(.system(size: 13)).foregroundStyle(.secondary) }
             }
             .padding(.leading, 10).padding(.trailing, 4)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(engine.recordingPaused ? "Recording paused" : "Recording")
+            .accessibilityLabel((engine.recordingPaused ? "Recording paused" : "Recording") + (engine.listenBack ? ", hearing yourself" : ""))
             BarIcon(symbol: engine.recordingPaused ? "record.circle" : "pause.fill",
                     label: engine.recordingPaused ? "Resume recording" : "Pause recording") { engine.togglePause() }
             BarIcon(symbol: engine.muted ? "mic.slash.fill" : "mic.fill", label: engine.muted ? "Unmute" : "Mute",

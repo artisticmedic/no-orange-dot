@@ -242,7 +242,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
             cmd(MenuCommand.record, "Start Recording", title: { e.recording ? "Stop Recording" : "Start Recording" }, when: driver) { e.toggleRecording() },
             cmd("pause-recording", title: { e.recordingPaused ? "Resume Recording" : "Pause Recording" }, when: { e.recording }) { e.togglePause() },
             .separator(),
-            cmd("play-last") { [weak self] in
+            cmd("play-last", when: { !e.recording }) { [weak self] in
                 e.withRecordings { list in
                     guard let r = list.first else { e.error = "There are no recordings to play yet."; return }
                     self?.show(.recordings)

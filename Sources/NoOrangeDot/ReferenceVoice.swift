@@ -16,6 +16,7 @@ final class ReferenceVoice: NSObject, ObservableObject, AVAudioPlayerDelegate, A
         case idle, preparing, playing, failed(String)
     }
     @Published private(set) var state: State = .idle
+    var isActive: Bool { state == .preparing || state == .playing }
     private var synthesizer: AVSpeechSynthesizer?
     private var player: AVAudioPlayer?
     private var cachedWave: Data?

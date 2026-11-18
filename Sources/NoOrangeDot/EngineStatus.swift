@@ -24,7 +24,7 @@ extension Engine {
         if !running { return "Mic off" }
         let who = Self.sentenceList(listeners)
         if !who.isEmpty { return "\(who) \(listeners.count == 1 ? "is" : "are") using the mic" }
-        return listenBack ? "Listening to yourself" : monitoring ? "Mic open for the live view" : "Mic open"
+        return listenBack ? "Hearing yourself" : monitoring ? "Mic open for the live view" : "Mic open"
     }
 
     var statusDetail: String {

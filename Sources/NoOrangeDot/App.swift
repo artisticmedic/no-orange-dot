@@ -482,14 +482,17 @@ struct EditorView: View {
     private var topBar: some View {
         HStack(spacing: 8) {
             Text(tab.rawValue).font(.system(size: 15, weight: .semibold))
+            if let notice = engine.notice {
+                Text(notice).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1).transition(.opacity)
+            }
             Spacer()
             if engine.driverInstalled {
                 if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
                 if engine.auditioning != nil, !engine.recording { PlayingChip() }
-                Button { if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }; engine.listenBack.toggle() } label: { Label(engine.listenBack ? "Listening" : "Listen", systemImage: "headphones") }
+                Button { if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }; engine.listenBack.toggle() } label: { Label("Hear myself", systemImage: "headphones") }
                     .buttonStyle(TopBarButtonStyle(active: engine.listenBack, tint: .accentColor))
                     .help("Hear your own voice, with the EQ, in your headphones")
-                    .accessibilityLabel(engine.listenBack ? "Stop listening to yourself" : "Listen to yourself")
+                    .accessibilityLabel(engine.listenBack ? "Stop hearing yourself" : "Hear yourself")
                 if engine.recording {
                     RecordingControls()
                 } else {
@@ -772,6 +775,7 @@ enum Render {
         NSApplication.shared.setActivationPolicy(.prohibited)
         let dir = URL(fileURLWithPath: directory, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        Engine.renderOnly = true
         let engine = Engine()
         engine.refreshRecordings()
         RunLoop.main.run(until: Date().addingTimeInterval(1))
