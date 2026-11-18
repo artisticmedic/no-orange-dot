@@ -29,8 +29,9 @@ struct ToneControl: Identifiable, Equatable {
     /// Rumble is a filter: its value is the cutoff frequency, and the bottom of its range turns it off.
     var isFilter: Bool { type == .highPass }
 
+    /// A narrow bell is a notch aimed at one resonance, not this control's broad region, so it is left alone.
     func index(in bands: [Band]) -> Int? {
-        bands.firstIndex { $0.type == type && covers.contains($0.freq) }
+        bands.firstIndex { $0.type == type && covers.contains($0.freq) && ($0.type != .bell || $0.q <= 2.5) }
     }
 
     func value(in bands: [Band]) -> Double {

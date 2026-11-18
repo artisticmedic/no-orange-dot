@@ -47,6 +47,15 @@ final class ToneControlTests: XCTestCase {
         XCTAssertEqual(on[0].freq, 85)
     }
 
+    func testANarrowNotchIsNotTreatedAsTheRegionsBand() throws {
+        let notch = Band(type: .bell, freq: 218, gainDB: -18, q: 10)
+        let bands = Presets.warm + [notch]
+        XCTAssertEqual(control("body").value(in: bands), 0)
+        let moved = try XCTUnwrap(control("body").setting(2, in: bands))
+        XCTAssertEqual(moved[5], notch, "the notch keeps its settings")
+        XCTAssertEqual(moved.last, Band(type: .bell, freq: 220, gainDB: 2, q: 0.8))
+    }
+
     func testRegionsDoNotOverlapForTheSameBandType() {
         let all = ToneControl.all
         for (i, a) in all.enumerated() {
