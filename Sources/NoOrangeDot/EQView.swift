@@ -7,98 +7,130 @@ struct EQView: View {
     private let fMin = 20.0, fMax = 20000.0, dbRange = 18.0
 
     @AppStorage(Engine.heatMapKey) private var heatMap = true
+    @AppStorage("showEqualizer") private var showEqualizer = false
     @State private var showEmptyHistory = false
     private var live: Bool { engine.monitoring || engine.auditioning != nil }
 
+    /// Tone: the plain-language sliders first, then the full equalizer they move, then what draws on it.
     var body: some View {
-        VStack(spacing: 12) { ToneCard(); curveCard; presetCard; PresetsCard(); voiceCard }
-    }
-
-    private var curveCard: some View {
         Card {
-            Row(title: "Equalizer", caption: readout ?? "Drag a dot to adjust a band.") {
-                IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { engine.undoEQ() }
-                    .disabled(!engine.canUndoEQ).opacity(engine.canUndoEQ ? 1 : 0.35)
-                if engine.history.isEmpty {
-                    IconButton(symbol: "clock.arrow.circlepath", label: "Earlier curves") { showEmptyHistory = true }
-                        .popover(isPresented: $showEmptyHistory, arrowEdge: .bottom) {
-                            VStack(spacing: 8) {
-                                ArtworkView(art: .emptyHistory, tint: Artwork.tint(engine.appIcon), surface: .clear)
-                                Text("No earlier curves yet").font(.system(size: 13, weight: .medium))
-                                Text("Change the EQ and the curve from before is kept here.")
-                                    .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            }
-                            .padding(16).frame(width: 220)
-                        }
-                } else {
-                Menu {
-                    ForEach(engine.history) { s in
-                        Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s) }
-                    }
-                    Divider()
-                    Button("Clear History") { engine.clearHistory() }
-                } label: { Image(systemName: "clock.arrow.circlepath").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34) }
-                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                .help("Earlier curves").accessibilityLabel("Earlier curves")
+            Row(title: "Tone", caption: engine.original ? "Processing is off: you're hearing the mic as it is. Turn off Hear Without Processing to hear your sound again."
+                                                        : "Shape your sound in plain words. Each slider moves a band in the equalizer.") { EmptyView() }
+            ToneSliders()
+            RowDivider()
+            equalizerHeader
+            if showEqualizer {
+                graph.frame(height: graphHeight).padding(.horizontal, 10).padding(.bottom, 10).opacity(engine.bypass || engine.original ? 0.45 : 1)
+                if let i = engine.bands.firstIndex(where: { $0.id == engine.selectedBand }) {
+                    RowDivider()
+                    bandEditor(i)
                 }
-                Toggle("Equalizer", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).labelsHidden().toggleStyle(.switch)
-            }
-            graph.frame(height: graphHeight).padding(.horizontal, 10).padding(.bottom, 10).opacity(engine.bypass ? 0.45 : 1)
-            if let i = engine.bands.firstIndex(where: { $0.id == engine.selectedBand }) {
                 RowDivider()
-                bandEditor(i)
+                startRow
+                RowDivider()
+                voiceRows
             }
         }
     }
 
-    private var presetCard: some View {
-        Card {
-            Row(title: "Curve", caption: nil) {
-                HStack(spacing: 8) {
-                    Menu {
-                        Button("Warm voice") { engine.bands = Presets.warm }
-                        Button("Flat") { engine.bands = Presets.flat }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text(presetName)
-                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        }
+    private var equalizerHeader: some View {
+        HStack(spacing: 14) {
+            Button { withAnimation(.easeOut(duration: 0.18)) { showEqualizer.toggle() } } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(showEqualizer ? 90 : 0)).frame(width: 12)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Equalizer").font(.system(size: 15))
+                        Text(readout ?? (showEqualizer ? "Drag a dot to adjust a band." : "\(engine.bands.count) bands. Open to drag the curve, add bands or see your voice."))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
                     }
-                    .menuStyle(.button).buttonStyle(PillButtonStyle()).fixedSize()
-                    Button { addBand() } label: { Label("Add Band", systemImage: "plus") }
-                        .buttonStyle(PillButtonStyle()).disabled(engine.bands.count >= DSPChain.maxBands)
+                    Spacer(minLength: 8)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showEqualizer ? "Hide the equalizer" : "Show the equalizer")
+            if showEqualizer {
+                IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { engine.undoEQ() }
+                    .disabled(!engine.canUndoEQ).opacity(engine.canUndoEQ ? 1 : 0.35)
+                history
+            }
+            Toggle("Equalizer", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).labelsHidden().toggleStyle(.switch)
+                .help("Turns the EQ bands on or off. The gate, compressor, de-esser and limiter stay as they are.")
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
+    @ViewBuilder private var history: some View {
+        if engine.history.isEmpty {
+            IconButton(symbol: "clock.arrow.circlepath", label: "Earlier curves") { showEmptyHistory = true }
+                .popover(isPresented: $showEmptyHistory, arrowEdge: .bottom) {
+                    VStack(spacing: 8) {
+                        ArtworkView(art: .emptyHistory, tint: Artwork.tint(engine.appIcon), surface: .clear)
+                        Text("No earlier curves yet").font(.system(size: 13, weight: .medium))
+                        Text("Change the EQ and the curve from before is kept here.")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    }
+                    .padding(16).frame(width: 220)
+                }
+        } else {
+            Menu {
+                ForEach(engine.history) { s in
+                    Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s) }
+                }
+                Divider()
+                Button("Clear History") { engine.clearHistory() }
+            } label: { Image(systemName: "clock.arrow.circlepath").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34).contentShape(Rectangle()) }
+            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+            .help("Earlier curves").accessibilityLabel("Earlier curves")
+        }
+    }
+
+    private var startRow: some View {
+        Row(title: "Starting points", caption: "Replace the curve with a starting point, or add a band to shape it yourself.") {
+            HStack(spacing: 8) {
+                Menu {
+                    Button("Warm voice") { engine.bands = Presets.warm }
+                    Button("Flat") { engine.bands = Presets.flat }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(presetName)
+                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                    }
+                }
+                .menuStyle(.button).buttonStyle(PillButtonStyle()).fixedSize()
+                .accessibilityLabel("EQ starting point")
+                Button { addBand() } label: { Label("Add Band", systemImage: "plus") }
+                    .buttonStyle(PillButtonStyle()).disabled(engine.bands.count >= DSPChain.maxBands)
             }
         }
     }
 
     /// "Bell · 480 Hz · −3.0 dB · Q 0.50" for the band being dragged or edited.
     private var readout: String? {
-        guard let b = engine.bands.first(where: { $0.id == engine.selectedBand }) else { return nil }
+        guard showEqualizer, let b = engine.bands.first(where: { $0.id == engine.selectedBand }) else { return nil }
         let f = b.freq >= 1000 ? String(format: "%.2f kHz", b.freq / 1000) : String(format: "%.0f Hz", b.freq)
         return [b.type.label, f, b.type.hasGain ? String(format: "%+.1f dB", b.gainDB) : nil, String(format: "Q %.2f", b.q)].compactMap { $0 }.joined(separator: "  ·  ")
     }
 
-    private var voiceCard: some View {
-        Card {
-            Row(title: "See your voice", caption: engine.monitoring ? "The mic is open while this is on." : "Shows your live voice behind the curve. Opens the mic.") {
-                Toggle("See your voice", isOn: $engine.monitoring).labelsHidden().toggleStyle(.switch)
+    @ViewBuilder private var voiceRows: some View {
+        Row(title: "See your voice", caption: engine.monitoring ? "The mic is open while this is on." : "Shows your live voice behind the curve. Opens the mic.") {
+            Toggle("See your voice", isOn: $engine.monitoring).labelsHidden().toggleStyle(.switch)
+        }
+        if live {
+            HStack(spacing: 14) {
+                legend(.accentColor, "The EQ is adding")
+                legend(.orange, "The EQ is taking away")
+                Spacer()
             }
-            if live {
-                HStack(spacing: 14) {
-                    legend(.accentColor, "The EQ is adding")
-                    legend(.orange, "The EQ is taking away")
-                    Spacer()
-                }
-                .padding(.horizontal, 14).padding(.bottom, 10)
-            }
-            RowDivider()
-            Row(title: "Heat map", caption: "Your voice over time: pitch runs bottom to top, brighter is louder.") {
-                Toggle("Heat map", isOn: $heatMap).labelsHidden().toggleStyle(.switch)
-            }
-            if heatMap, live {
-                SpectrogramView().frame(height: 110).padding(.horizontal, 10).padding(.bottom, 10)
-            }
+            .padding(.horizontal, 14).padding(.bottom, 10)
+        }
+        RowDivider()
+        Row(title: "Heat map", caption: "Your voice over time: pitch runs bottom to top, brighter is louder.") {
+            Toggle("Heat map", isOn: $heatMap).labelsHidden().toggleStyle(.switch)
+        }
+        if heatMap, live {
+            SpectrogramView().frame(height: 110).padding(.horizontal, 10).padding(.bottom, 10)
         }
     }
 

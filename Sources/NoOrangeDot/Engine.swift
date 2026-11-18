@@ -62,6 +62,10 @@ final class Engine: ObservableObject {
     }
     @Published var dynamics: Dynamics { didSet { pushDSP(); changed() } }
     @Published var bypass: Bool { didSet { pushDSP(); changed() } }
+    /// Everything off but output and limiter, to compare against. Not saved: it is for listening, not a setting.
+    @Published var original = false { didSet { pushDSP() } }
+    /// The preset chosen last, to say when the sound has changed since.
+    @Published var lastPreset: UUID?
     @Published var outputGainDB: Double { didSet { pushDSP(); changed() } }
     /// Saved sounds, shared by every microphone.
     @Published var presets: [SoundPreset] = [] { didSet { if presets != oldValue { changed() } } }
@@ -550,11 +554,13 @@ final class Engine: ObservableObject {
     }
 
     func pushDSP() {
-        dsp.set(bands: bands, dynamics: dynamics, sampleRate: sampleRate, outputGainDB: outputGainDB, bypass: bypass)
-        if auditioning != nil { player.chain.set(bands: bands, dynamics: dynamics, sampleRate: player.sampleRate, outputGainDB: outputGainDB, bypass: bypass) }
+        // The Equalizer switch turns off only the bands; `original` turns off the dynamics too.
+        let eq = bypass ? [] : bands
+        dsp.set(bands: eq, dynamics: dynamics, sampleRate: sampleRate, outputGainDB: outputGainDB, bypass: original)
+        if auditioning != nil { player.chain.set(bands: eq, dynamics: dynamics, sampleRate: player.sampleRate, outputGainDB: outputGainDB, bypass: original) }
     }
     func responseDB(at f: Double) -> Double {
-        guard !bypass else { return 0 }
+        guard !bypass, !original else { return 0 }
         return bands.filter(\.on).reduce(outputGainDB) { $0 + Coeffs.make($1, sampleRate: sampleRate).magnitudeDB(at: f, sampleRate: sampleRate) }
     }
 }

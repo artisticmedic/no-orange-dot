@@ -486,6 +486,11 @@ struct EditorView: View {
     private var topBar: some View {
         HStack(spacing: 8) {
             Text(tab.rawValue).font(.system(size: 15, weight: .semibold))
+            if engine.original {
+                Button { engine.original = false } label: { Label("Processing off", systemImage: "exclamationmark.circle") }
+                    .buttonStyle(TopBarButtonStyle(active: true, tint: .orange))
+                    .help("Hear Without Processing is on, for apps using the mic too. Click to turn your sound back on.")
+            }
             if let notice = engine.notice {
                 Text(notice).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1).transition(.opacity)
             }
@@ -523,9 +528,12 @@ struct EditorView: View {
             } else {
                 switch tab {
                 case .sound:
-                    VStack(spacing: 8) { SectionLabel(text: "Voice level"); VoiceCheckCard() }
-                    VStack(spacing: 8) { SectionLabel(text: "Tone"); EQView(graphHeight: 280) }
-                    VStack(spacing: 8) { SectionLabel(text: "Dynamics"); DynamicsView() }
+                    VStack(spacing: 14) {
+                        PresetsCard()
+                        EQView(graphHeight: 280)
+                        DynamicsView()
+                        VoiceCheckCard()
+                    }
                 case .recordings:
                     RecordingsView()
                 case .settings:
@@ -641,9 +649,6 @@ struct EditorView: View {
             Row(title: "Use as the Mac's microphone", caption: "Apps that follow the Mac's sound settings get \(engine.micDisplayName).") {
                 Toggle("Use as the Mac's microphone", isOn: Binding(get: { engine.isSystemMicrophone }, set: { engine.setSystemMicrophone($0) })).labelsHidden().toggleStyle(.switch)
             }
-            RowDivider()
-            Row(title: "Output level", caption: "Applied after the EQ, gate, compressor and de-esser.") { EmptyView() }
-            SliderRow(label: "Level", value: String(format: "%+.1f dB", engine.outputGainDB), binding: $engine.outputGainDB, range: -12...12).padding(.bottom, 6)
             if let ms = engine.lastWakeMs {
                 RowDivider()
                 Row(title: "Last wake-up", caption: "How long the mic took to open the last time an app asked.") {
@@ -713,15 +718,46 @@ struct DynamicsView: View {
         CompPreset(name: "Tight", threshold: -24, ratio: 4, attack: 5, release: 120, makeup: 5),
     ]
 
+    @AppStorage("dynamicsOpen") private var openList = ""
+
+    private func isOpen(_ id: String) -> Bool { openList.split(separator: ",").contains(Substring(id)) }
+    private func toggleOpen(_ id: String) {
+        var open = Set(openList.split(separator: ",").map(String.init))
+        if open.contains(id) { open.remove(id) } else { open.insert(id) }
+        openList = open.sorted().joined(separator: ",")
+    }
+
+    /// A processor's row: the chevron shows its settings, the switch turns it on. Either works without the other.
+    private func header(_ id: String, _ title: String, _ caption: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 14) {
+            Button { withAnimation(.easeOut(duration: 0.18)) { toggleOpen(id) } } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isOpen(id) ? 90 : 0)).frame(width: 12)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(.system(size: 15))
+                        Text(caption).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isOpen(id) ? "Hide \(title) settings" : "Show \(title) settings")
+            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
     var body: some View {
         Card {
-            Row(title: "Noise gate", caption: "Turns the mic down between phrases.") {
-                Toggle("Noise gate", isOn: $engine.dynamics.gateOn).labelsHidden().toggleStyle(.switch)
-            }
-            if engine.dynamics.gateOn {
+            Row(title: "Dynamics", caption: engine.original ? "Off while Hear Without Processing is on." : "These run after the tone, top to bottom. Open a row to see its settings without turning it on.") { EmptyView() }
+            RowDivider()
+            header("gate", "Noise gate", "Turns the mic down between phrases.", isOn: $engine.dynamics.gateOn)
+            if isOpen("gate") {
                 Live(engine.meters) { m in
                 ThresholdMeter(level: engine.running ? m.level : 0, thresholdDB: engine.dynamics.gateThresholdDB,
-                               note: engine.running ? (Self.db(m.level) >= engine.dynamics.gateThresholdDB ? "Open" : "Closed") : "Mic closed")
+                               note: !engine.dynamics.gateOn ? "Off" : engine.running ? (Self.db(m.level) >= engine.dynamics.gateThresholdDB ? "Open" : "Closed") : "Mic closed")
                 }
                 SliderRow(label: "Opens at", value: String(format: "%.0f dB", engine.dynamics.gateThresholdDB), binding: $engine.dynamics.gateThresholdDB, range: -80 ... -20)
                 SliderRow(label: "Cut by", value: String(format: "%.0f dB", -engine.dynamics.gateRangeDB),
@@ -731,15 +767,13 @@ struct DynamicsView: View {
             }
             RowDivider()
             Live(engine.meters) { m in
-            Row(title: "Compressor", caption: engine.dynamics.compOn && engine.running
-                ? String(format: "Turning the loud parts down %.1f dB.", m.reductionDB) : "Evens out loud and quiet speech.") {
-                Toggle("Compressor", isOn: $engine.dynamics.compOn).labelsHidden().toggleStyle(.switch)
+                header("comp", "Compressor", engine.dynamics.compOn && engine.running
+                       ? String(format: "Turning the loud parts down %.1f dB.", m.reductionDB) : "Evens out loud and quiet speech.", isOn: $engine.dynamics.compOn)
             }
-            }
-            if engine.dynamics.compOn {
+            if isOpen("comp") {
                 Live(engine.meters) { m in
                 ThresholdMeter(level: engine.running ? m.level : 0, thresholdDB: engine.dynamics.compThresholdDB,
-                               note: engine.running ? String(format: "−%.1f dB", m.reductionDB) : "Mic closed")
+                               note: !engine.dynamics.compOn ? "Off" : engine.running ? String(format: "−%.1f dB", m.reductionDB) : "Mic closed")
                 }
                 HStack(spacing: 8) {
                     Text("Start from").font(.system(size: 13)).foregroundStyle(.secondary)
@@ -757,26 +791,23 @@ struct DynamicsView: View {
             }
             RowDivider()
             Live(engine.meters) { m in
-            Row(title: "De-esser", caption: engine.dynamics.deessOn && engine.running && m.deessDB > 0.1
-                ? String(format: "Softened an S by %.1f dB.", m.deessDB) : "Softens sharp S sounds.") {
-                Toggle("De-esser", isOn: $engine.dynamics.deessOn).labelsHidden().toggleStyle(.switch)
+                header("deess", "De-esser", engine.dynamics.deessOn && engine.running && m.deessDB > 0.1
+                       ? String(format: "Softened an S by %.1f dB.", m.deessDB) : "Softens sharp S sounds.", isOn: $engine.dynamics.deessOn)
             }
-            }
-            if engine.dynamics.deessOn {
+            if isOpen("deess") {
                 SliderRow(label: "Amount", value: String(format: "Up to %.0f dB", engine.dynamics.deessAmountDB), binding: $engine.dynamics.deessAmountDB, range: 2...12)
                 SliderRow(label: "Frequency", value: String(format: "%.1f kHz", engine.dynamics.deessFreq / 1000), binding: $engine.dynamics.deessFreq, range: 3000...10000).padding(.bottom, 6)
             }
             RowDivider()
             Live(engine.meters) { m in
-            Row(title: "Limiter", caption: engine.dynamics.limiterOn && engine.running && m.limiterDB > 0.1
-                ? String(format: "Pulled a peak down %.1f dB.", m.limiterDB) : "Catches loud peaks before they clip.") {
-                Toggle("Limiter", isOn: $engine.dynamics.limiterOn).labelsHidden().toggleStyle(.switch)
+                header("limiter", "Limiter", engine.dynamics.limiterOn && engine.running && m.limiterDB > 0.1
+                       ? String(format: "Pulled a peak down %.1f dB.", m.limiterDB) : "Catches loud peaks before they clip.", isOn: $engine.dynamics.limiterOn)
             }
-            }
-            if engine.dynamics.limiterOn {
+            if isOpen("limiter") {
                 SliderRow(label: "Ceiling", value: String(format: "%.1f dB", engine.dynamics.limiterCeilingDB), binding: $engine.dynamics.limiterCeilingDB, range: -12...0).padding(.bottom, 6)
             }
         }
+        .opacity(engine.original ? 0.6 : 1)
     }
 }
 

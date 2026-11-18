@@ -25,6 +25,12 @@ struct PlayerBar: View {
                         Text("\(Recording.clock(engine.playheadSeconds)) / \(Recording.clock(take.seconds))")
                             .font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary)
                     }
+                    if take.raw != nil {
+                        Button { engine.original.toggle() } label: { Text("Original") }
+                            .buttonStyle(TopBarButtonStyle(active: engine.original, tint: .orange))
+                            .help("Hear the take without EQ or dynamics. This also turns processing off for apps using the mic, until you turn it back on.")
+                            .accessibilityAddTraits(engine.original ? .isSelected : [])
+                    }
                     Button { engine.auditionLoop.toggle() } label: { Label("Loop", systemImage: "repeat") }
                         .buttonStyle(TopBarButtonStyle(active: engine.auditionLoop, tint: .accentColor))
                         .help(engine.selection == nil ? "Repeat the whole recording" : "Repeat the selection")

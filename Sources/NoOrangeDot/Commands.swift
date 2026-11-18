@@ -22,6 +22,7 @@ struct MenuCommand: Identifiable, Equatable {
         MenuCommand(id: "rename-mic", menu: "Microphone", title: "Rename the Mic…"),
 
         MenuCommand(id: "eq", menu: "Sound", title: "Equalizer"),
+        MenuCommand(id: "original", menu: "Sound", title: "Hear Without Processing"),
         MenuCommand(id: "curve-warm", menu: "Sound", title: "Warm Voice Curve"),
         MenuCommand(id: "curve-flat", menu: "Sound", title: "Flat Curve"),
         MenuCommand(id: "clear-history", menu: "Sound", title: "Clear Earlier Curves"),

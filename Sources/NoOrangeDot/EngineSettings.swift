@@ -66,6 +66,7 @@ extension Engine {
     }
 
     func use(_ preset: SoundPreset) {
+        lastPreset = preset.id
         flushHistory()
         let old = bands
         var p = activeProfile

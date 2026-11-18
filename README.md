@@ -25,13 +25,14 @@ The orange dot still appears while an app is using the mic. It goes away when th
 - Noise gate, compressor, a de-esser that softens sharp S sounds, and a limiter that catches peaks before they clip
 - Mute, which closes the real microphone
 - Record to a WAV file in `~/Music/No Orange Dot/`
-- Presets: save whole sounds in a list, loop one recording, and click down the list to hear each on the same words
-- Listen back: hear the processed mic in your headphones
+- Presets: save whole sounds, loop one recording, and click through them to hear each on the same words
+- Hear myself: hear the processed mic in your headphones
 - Keyboard shortcuts you choose: none are built in. Mute and record can work in any app, and every menu command can have one
 - The microphone's own preamp gain, with a lock that stops other apps changing it, on hardware that allows it
 - A separate saved sound for each microphone
 - A live view of your voice behind the EQ curve, shaded where the EQ adds and takes away
-- Recordings keep a raw take, so you can replay one through the EQ and change the curve while it loops
+- Recordings keep a raw take, so you can replay one through your current sound and change it while it loops
+- One player for recordings: pause, seek, scrub, loop a selected part, and save a part as its own recording
 - Matching: fit an EQ that makes one microphone sound like a recording of another
 - A name of your choice for the microphone apps see
 - Mono and stereo microphones at 44.1, 48, 88.2 and 96 kHz

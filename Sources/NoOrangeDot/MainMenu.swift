@@ -200,6 +200,7 @@ final class MainMenu: NSObject, NSMenuDelegate {
         }
         add("Sound", [
             cmd("eq", on: { !e.bypass }) { e.bypass.toggle() },
+            cmd("original", on: { e.original }) { e.original.toggle() },
             sub("Curve", NSMenu(title: "Curve"), [
                 cmd("curve-warm", "Warm Voice", on: { e.bands == Presets.warm }) { e.bands = Presets.warm },
                 cmd("curve-flat", "Flat", on: { e.bands == Presets.flat }) { e.bands = Presets.flat },
