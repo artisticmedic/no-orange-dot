@@ -356,6 +356,10 @@ struct EditorView: View {
                     page.padding(.horizontal, 28).padding(.vertical, 24)
                         .frame(maxWidth: 760).frame(maxWidth: .infinity)
                 }
+                if engine.driverInstalled, tab != .settings, !engine.recordings.isEmpty {
+                    Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+                    PlayerBar().frame(maxWidth: 760).frame(maxWidth: .infinity)
+                }
             }
             .background(Surface.page)
         }
@@ -488,7 +492,6 @@ struct EditorView: View {
             Spacer()
             if engine.driverInstalled {
                 if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
-                if engine.auditioning != nil, !engine.recording { PlayingChip() }
                 Button { if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }; engine.listenBack.toggle() } label: { Label("Hear myself", systemImage: "headphones") }
                     .buttonStyle(TopBarButtonStyle(active: engine.listenBack, tint: .accentColor))
                     .help("Hear your own voice, with the EQ, in your headphones")
@@ -518,7 +521,6 @@ struct EditorView: View {
             if !engine.driverInstalled {
                 Card { Row(title: "The microphone driver is missing", caption: "Run the installer again. Until it is back, no app can see the microphone.") { EmptyView() } }
             } else {
-                AuditionBar()
                 switch tab {
                 case .sound:
                     VStack(spacing: 8) { SectionLabel(text: "Voice level"); VoiceCheckCard() }
@@ -529,6 +531,7 @@ struct EditorView: View {
                 case .settings:
                     VStack(spacing: 8) { SectionLabel(text: "Microphone priority"); MicOrderCard() }
                     VStack(spacing: 8) { SectionLabel(text: "Microphone"); general }
+                    VStack(spacing: 8) { SectionLabel(text: "Recordings"); recordingsFolder }
                     VStack(spacing: 8) { SectionLabel(text: "Shortcuts"); shortcuts }
                     VStack(spacing: 8) { SectionLabel(text: "App"); app }
                     VStack(spacing: 8) { SectionLabel(text: "Updates"); updates }
@@ -539,6 +542,17 @@ struct EditorView: View {
     }
 
     private var shortcuts: some View { ShortcutsCard() }
+
+    private var recordingsFolder: some View {
+        Card {
+            Row(title: (engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath, caption: "New recordings go here.") {
+                HStack(spacing: 8) {
+                    Button("Open") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
+                    Button("Change…") { engine.chooseRecordingsFolder() }.buttonStyle(PillButtonStyle())
+                }
+            }
+        }
+    }
 
     private var updates: some View {
         Card {
@@ -795,12 +809,12 @@ enum Render {
                 ("panel", AnyView(MenuPanelContent(model: PanelModel()).environmentObject(engine))),
                 ("editor-sound", AnyView(EditorView(tab: .sound).environmentObject(engine))),
                 ("editor-recordings", AnyView(EditorView(tab: .recordings).environmentObject(engine))),
-                ("editor-playing", AnyView(EditorView(tab: .recordings).environmentObject(engine).onAppear { engine.auditioning = engine.recordings.first?.url; engine.meters.auditionProgress = 0.4 })),
+                ("editor-playing", AnyView(EditorView(tab: .recordings).environmentObject(engine).onAppear { engine.cueSeconds = (engine.recordings.first?.seconds ?? 0) * 0.4; engine.selection = (engine.recordings.first?.seconds).map { $0 * 0.2...$0 * 0.6 } })),
                 ("editor-settings", AnyView(EditorView(tab: .settings).environmentObject(engine))),
                 ("mute-button", AnyView(MuteButtonSheet())),
             ]
             for (name, view) in views {
-                if name != "editor-playing" { engine.auditioning = nil }
+                if name != "editor-playing" { engine.cueSeconds = 0; engine.selection = nil }
                 let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, scheme))
                 let size = !name.hasPrefix("editor") ? host.fittingSize : NSSize(width: 980, height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700)
                 host.frame = NSRect(origin: .zero, size: size)

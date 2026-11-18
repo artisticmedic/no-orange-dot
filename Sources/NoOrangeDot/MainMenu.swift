@@ -250,8 +250,8 @@ final class MainMenu: NSObject, NSMenuDelegate {
                 }
             },
             sub("Play", play),
-            cmd("stop-playing", when: { e.auditioning != nil || Playback.shared.playing != nil }) { e.stopPlaying() },
-            cmd("loop", on: { e.auditionLoop }, when: { Playback.shared.playing == nil }) { e.auditionLoop.toggle() },
+            cmd("stop-playing", when: { e.auditioning != nil }) { e.stopPlaying() },
+            cmd("loop", on: { e.auditionLoop }) { e.auditionLoop.toggle() },
             .separator(),
             cmd("reveal-last") {
                 e.withRecordings { list in

@@ -5,14 +5,10 @@ struct PresetsCard: View {
     @EnvironmentObject var engine: Engine
     @State private var naming = false
     @State private var name = ""
-    @State private var chosen: URL?
-
-    private var takes: [Recording] { engine.recordings.filter { $0.raw != nil } }
-    private var playing: Recording? { engine.recordings.first { $0.url == engine.auditioning } }
 
     var body: some View {
         Card {
-            Row(title: "Presets", caption: "A preset saves the EQ, gate, compressor, de-esser, limiter and output level.") {
+            Row(title: "Presets", caption: "A preset saves the EQ, gate, compressor, de-esser, limiter and output level. Loop a recording in the player below, then click presets to hear each on the same words.") {
                 Button { name = suggestedName; naming = true } label: { Label("Save Current…", systemImage: "plus") }.buttonStyle(PillButtonStyle())
             }
             let current = engine.currentPreset
@@ -20,8 +16,6 @@ struct PresetsCard: View {
                 RowDivider()
                 row(i, preset, isCurrent: preset.id == current?.id)
             }
-            RowDivider()
-            compare
         }
         .onAppear { engine.refreshRecordings() }
         .alert("Save this sound as a preset", isPresented: $naming) {
@@ -63,66 +57,5 @@ struct PresetsCard: View {
             IconButton(symbol: "trash", label: "Delete \(preset.name)") { engine.deletePreset(preset) }.padding(.trailing, 8)
         }
         .background(isCurrent ? Color.primary.opacity(0.05) : .clear)
-    }
-
-    /// The take chosen to compare on: the one playing, the one picked, or the newest.
-    private var pick: Recording? { playing ?? takes.first { $0.url == chosen } ?? takes.first }
-
-    /// Choose a recording, then loop it while clicking through the presets.
-    @ViewBuilder private var compare: some View {
-        if takes.isEmpty {
-            Row(title: "Compare on a recording", caption: engine.recordings.isEmpty ? "Record a few sentences to compare presets on them."
-                : "Make a new recording to use this. The recordings you have were saved without their original audio.") { EmptyView() }
-        } else if let pick {
-            VStack(spacing: 0) {
-                Row(title: playing == nil ? "Compare on a recording" : "Playing on repeat",
-                    caption: playing == nil ? "Choose a recording, then play it while you click between presets."
-                        : engine.presets.isEmpty ? "Save two or more presets, then click one to switch." : "Click a preset to hear it on the same words.") {
-                    HStack(spacing: 8) {
-                        Menu {
-                            ForEach(takes.prefix(20)) { r in
-                                Button { choose(r) } label: {
-                                    let text = "\(Recording.friendly(r.date))  ·  \(Recording.clock(r.seconds))"
-                                    if r.url == pick.url { Label(text, systemImage: "checkmark") } else { Text(text) }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text("\(Recording.friendly(pick.date))  ·  \(Recording.clock(pick.seconds))").lineLimit(1)
-                                Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                            }
-                        }
-                        .menuStyle(.button).buttonStyle(PillButtonStyle()).fixedSize()
-                        .accessibilityLabel("Recording to compare on")
-                        if playing != nil {
-                            Button { engine.stopAudition() } label: { Label("Stop", systemImage: "stop.fill") }.buttonStyle(PillButtonStyle())
-                        } else {
-                            Button { play(pick) } label: { Label("Play", systemImage: "play.fill") }.buttonStyle(PillButtonStyle(prominent: true))
-                        }
-                    }
-                }
-                if let playing {
-                    Live(engine.meters) { m in
-                        HStack(spacing: 10) {
-                            ProgressView(value: m.auditionProgress).controlSize(.small)
-                            Text("\(Recording.clock(m.auditionProgress * playing.seconds)) / \(Recording.clock(playing.seconds))")
-                                .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 14).padding(.bottom, 11)
-                }
-            }
-        }
-    }
-
-    /// Picking another take while one plays switches to it straight away.
-    private func choose(_ r: Recording) {
-        chosen = r.url
-        if playing != nil { play(r) }
-    }
-
-    private func play(_ r: Recording) {
-        engine.auditionLoop = true
-        engine.startAudition(r)
     }
 }

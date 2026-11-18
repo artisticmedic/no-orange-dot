@@ -95,6 +95,13 @@ final class Engine: ObservableObject {
     @Published var monitoring = false { didSet { evaluate(); if !monitoring { scope.clear(); historyColumn = 0 } } }
     // Replaying a raw take through the EQ, to hear a change on the same words.
     @Published var auditioning: URL?
+    /// The recording chosen in the player, which can be shown without being loaded.
+    @Published var playerTake: URL?
+    @Published var playerPaused = false { didSet { player.paused = playerPaused } }
+    /// The part of the recording to loop or save, in seconds.
+    @Published var selection: ClosedRange<Double>?
+    /// Where playback starts while the player is not loaded.
+    @Published var cueSeconds = 0.0
     @Published var auditionLoop = true { didSet { player.loop = auditionLoop } }
     @Published var recordingPaused = false
     /// The take that was just saved, shown in the top bar for a few seconds.
@@ -513,7 +520,7 @@ final class Engine: ObservableObject {
             if ticks % 20 == 0 || gainLockDB != nil { refreshMicGain() }
         }
         if auditioning != nil {
-            if player.finished { stopAudition() } else {
+            if player.finished { playerFinished() } else {
                 meters.playbackVoice = player.voiceLevel.reading
                 meters.auditionProgress = player.progress
                 analyze(raw: player.rawRing, post: player.postRing, end: player.ringIndex, rate: player.sampleRate)

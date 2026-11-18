@@ -38,11 +38,9 @@ struct Recording: Identifiable, Equatable {
     }
 }
 
-/// Plays one recording at a time through the Mac's output.
+/// Plays one file through the Mac's output, for the automatic EQ's before-and-after.
 @MainActor
 final class Playback: NSObject, ObservableObject, AVAudioPlayerDelegate {
-    /// The player for the recordings list, shared with the menus.
-    static let shared = Playback()
     @Published var playing: URL?
     private var player: AVAudioPlayer?
     @Published var voice = VoiceLevel.Reading(averageDB: -100, peakDB: -100)
@@ -89,67 +87,60 @@ final class Playback: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
 struct RecordingsView: View {
     @EnvironmentObject var engine: Engine
-    @ObservedObject private var playback = Playback.shared
 
     var body: some View {
-        VStack(spacing: 18) {
-            VStack(spacing: 8) {
-                SectionLabel(text: "Folder")
-                Card {
-                    Row(title: (engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath, caption: "New recordings go here.") {
-                        HStack(spacing: 8) {
-                            Button("Open") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
-                            Button("Change…") { engine.chooseRecordingsFolder() }.buttonStyle(PillButtonStyle())
-                        }
-                    }
-                }
-            }
-            VStack(spacing: 8) {
-                HStack {
-                    SectionLabel(text: engine.recordings.isEmpty ? "Recordings" : "Recordings (\(engine.recordings.count))")
+        Card {
+            Row(title: engine.recordings.isEmpty ? "Recordings" : "Recordings (\(engine.recordings.count))",
+                caption: "Saved in \((engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath). Choose one to open it in the player below.") {
+                HStack(spacing: 8) {
+                    Button("Open Folder") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
                     if !engine.recordings.isEmpty {
                         Button("Delete All…") { clear() }.buttonStyle(PillButtonStyle())
                     }
                 }
-                Card {
-                    if engine.recordings.isEmpty {
-                        HStack(spacing: 4) {
-                            ArtworkView(art: .emptyRecordings, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
-                            Row(title: "Nothing here yet", caption: "Press Record and say a few sentences.") { EmptyView() }
-                        }
-                    } else {
-                        ForEach(Array(engine.recordings.enumerated()), id: \.element.id) { i, r in
-                            if i > 0 { RowDivider() }
-                            row(r)
-                        }
-                    }
+            }
+            if engine.recordings.isEmpty {
+                RowDivider()
+                HStack(spacing: 4) {
+                    ArtworkView(art: .emptyRecordings, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
+                    Row(title: "Nothing here yet", caption: "Press Record and say a few sentences.") { EmptyView() }
+                }
+            } else {
+                ForEach(engine.recordings) { r in
+                    RowDivider()
+                    row(r)
                 }
             }
         }
         .onAppear { engine.refreshRecordings() }
-        .onDisappear { playback.stop() }
     }
 
     private func row(_ r: Recording) -> some View {
-        let throughEQ = r.raw != nil
-        let isPlaying = throughEQ ? engine.auditioning == r.url : playback.playing == r.url
+        let selected = engine.playerRecording?.url == r.url
+        let loaded = engine.auditioning == r.url
+        let playing = loaded && !engine.playerPaused
         return HStack(spacing: 0) {
-          ArtworkView(art: .take, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
-          Row(title: Recording.friendly(r.date),
-                   caption: "\(Recording.clock(r.seconds))  ·  \(r.url.lastPathComponent)\(throughEQ ? "  ·  plays through the EQ" : "")") {
-            HStack(spacing: 2) {
-                IconButton(symbol: isPlaying ? "stop.fill" : "play.fill", label: isPlaying ? "Stop" : throughEQ ? "Play through the EQ" : "Play") {
-                    if isPlaying { engine.stopPlaying() } else { engine.play(r) }
+            Button { engine.choosePlayerTake(r) } label: {
+                HStack(spacing: 4) {
+                    ArtworkView(art: .take, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
+                    Row(title: Recording.friendly(r.date),
+                        caption: "\(Recording.clock(r.seconds))  ·  \(r.url.lastPathComponent)  ·  \(r.raw != nil ? "plays through your current sound" : "plays as saved")") { EmptyView() }
                 }
-                IconButton(symbol: "folder", label: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([r.url]) }
-                IconButton(symbol: "trash", label: "Move to Trash") {
-                    if playback.playing == r.url { playback.stop() }
-                    engine.trash([r])
-                }
+                .contentShape(Rectangle())
             }
-          }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(Recording.friendly(r.date)) in the player").accessibilityAddTraits(selected ? .isSelected : [])
+            HStack(spacing: 2) {
+                IconButton(symbol: playing ? "pause.fill" : "play.fill", label: playing ? "Pause" : "Play") {
+                    if loaded { engine.playerPaused.toggle() } else { engine.play(r) }
+                }
+                .disabled(engine.recording)
+                IconButton(symbol: "folder", label: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([r.url]) }
+                IconButton(symbol: "trash", label: "Move to Trash") { engine.trash([r]) }
+            }
+            .padding(.trailing, 8)
         }
-        .background(isPlaying ? Color.primary.opacity(0.05) : .clear)
+        .background(selected ? Color.primary.opacity(0.05) : .clear)
     }
 
     private func clear() {
@@ -159,32 +150,6 @@ struct RecordingsView: View {
         alert.informativeText = "You can put them back from the Trash."
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn { playback.stop(); engine.trash(engine.recordings) }
-    }
-}
-
-/// Shown under the tabs while a raw take is playing: the same words on repeat while the EQ is changed.
-struct AuditionBar: View {
-    @EnvironmentObject var engine: Engine
-
-    var body: some View {
-        if let url = engine.auditioning {
-            Card {
-                HStack(spacing: 12) {
-                    IconButton(symbol: "stop.fill", label: "Stop") { engine.stopAudition() }
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 8) {
-                            Text("Playing \(url.deletingPathExtension().lastPathComponent)").font(.system(size: 14, weight: .medium)).lineLimit(1)
-                            Text("On repeat, through your current settings.").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Live(engine.meters) { m in ProgressView(value: m.auditionProgress).controlSize(.small) }
-                    }
-                    Toggle("Loop", isOn: $engine.auditionLoop).toggleStyle(.switch)
-                    Toggle("EQ", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).toggleStyle(.switch)
-                }
-                .font(.system(size: 13))
-                .padding(.horizontal, 10).padding(.vertical, 8)
-            }
-        }
+        if alert.runModal() == .alertFirstButtonReturn { engine.stopPlaying(); engine.trash(engine.recordings) }
     }
 }

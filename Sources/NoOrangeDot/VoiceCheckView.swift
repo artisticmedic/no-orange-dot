@@ -4,8 +4,6 @@ import SwiftUI
 struct VoiceCheckCard: View {
     @EnvironmentObject var engine: Engine
     @ObservedObject private var reference = ReferenceVoice.shared
-    @ObservedObject private var playback = Playback.shared
-    @State private var chosen: URL?
 
     private var referenceActive: Bool {
         switch reference.state { case .preparing, .playing: return true; default: return false }
@@ -17,10 +15,8 @@ struct VoiceCheckCard: View {
         default: return "Play Reference"
         }
     }
-    private var pick: Recording? {
-        engine.recordings.first { $0.url == (engine.auditioning ?? playback.playing ?? chosen) } ?? engine.recordings.first
-    }
-    private var playing: Bool { engine.auditioning != nil || playback.playing != nil }
+    private var pick: Recording? { engine.recordings.first { $0.url == engine.auditioning } }
+    private var playing: Bool { engine.auditioning != nil }
 
     private var noMicrophone: Bool { !engine.driverInstalled || engine.inputUID.isEmpty }
 
@@ -41,7 +37,7 @@ struct VoiceCheckCard: View {
 
     var body: some View {
         Card {
-            Row(title: "Voice level", caption: "Compare at the same headphone or speaker volume.") {
+            Row(title: "Voice level", caption: engine.recordings.isEmpty ? "Compare at the same headphone or speaker volume." : "Compare at the same headphone or speaker volume. Play a recording in the player below to measure it.") {
                 HStack(spacing: 8) {
                     Button {
                         reference.stop()
@@ -68,55 +64,13 @@ struct VoiceCheckCard: View {
                 }
             }
             Live(engine.meters) { meters in
-                let reading = engine.auditioning != nil ? meters.playbackVoice : playback.playing != nil ? playback.voice : meters.voice
+                let reading = playing ? meters.playbackVoice : meters.voice
                 let active = playing || (engine.running && !engine.muted)
                 VoiceLevelDisplay(reading: reading, active: active, label: source.title,
                                   detail: active && !referenceActive ? source.title + " · " + source.detail : source.detail,
                                   suppressed: referenceActive || (!playing && engine.muted))
             }
             .padding(.horizontal, 14).padding(.bottom, 12)
-            if let pick {
-                RowDivider()
-                Row(title: "Compare your recording") {
-                    HStack(spacing: 8) {
-                        Menu {
-                            ForEach(engine.recordings.prefix(20)) { take in
-                                Button {
-                                    chosen = take.url
-                                    if playing { engine.play(take) }
-                                } label: {
-                                    let label = "\(Recording.friendly(take.date)) · \(Recording.clock(take.seconds))"
-                                    if take.url == pick.url { Label(label, systemImage: "checkmark") } else { Text(label) }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(Recording.friendly(pick.date)).lineLimit(1)
-                                Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
-                            }
-                        }
-                        .menuStyle(.button).buttonStyle(PillButtonStyle())
-                        .accessibilityLabel("Recording for the volume comparison")
-                        Button {
-                            if playing { engine.stopPlaying() }
-                            else {
-                                reference.stop()
-                                engine.checkingVoice = false
-                                engine.auditionLoop = false
-                                engine.play(pick)
-                            }
-                        } label: {
-                            Label(playing ? "Stop" : "Play Mine", systemImage: playing ? "stop.fill" : "play.fill")
-                        }
-                        .buttonStyle(PillButtonStyle())
-                        .disabled(engine.recording)
-                    }
-                }
-            } else {
-                Text("Record a few sentences with the Record button to compare your voice with the reference.")
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
-            }
             RowDivider()
             SliderRow(label: "Output", value: String(format: "%+.1f dB", engine.outputGainDB), binding: $engine.outputGainDB, range: -12...12)
                 .padding(.vertical, 4)
@@ -126,11 +80,6 @@ struct VoiceCheckCard: View {
             if engine.recording || engine.listenBack {
                 Text(engine.recording ? "Stop recording before playing the reference." : "Turn off Hear myself to compare with the reference on its own.")
                     .font(.system(size: 13)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
-            }
-            if playing, pick?.raw == nil {
-                Text("This take plays as saved. Output changes apply to your next recording.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
             }
             if case .failed(let message) = reference.state {

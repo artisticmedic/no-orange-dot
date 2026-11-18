@@ -29,7 +29,7 @@ extension Engine {
         } catch { self.error = error.localizedDescription; return }
         // A take is the mic alone: anything playing would also reach the speakers and the mic.
         let interrupted = MainActor.assumeIsolated { () -> Bool in
-            let active = auditioning != nil || Playback.shared.playing != nil || ReferenceVoice.shared.isActive
+            let active = auditioning != nil || ReferenceVoice.shared.isActive
             stopPlaying()
             ReferenceVoice.shared.stop()
             return active
@@ -103,29 +103,11 @@ extension Engine {
     func trash(_ items: [Recording]) {
         for r in items {
             if auditioning == r.url { stopAudition() }
+            if playerTake == r.url { playerTake = nil; selection = nil; cueSeconds = 0 }
             try? FileManager.default.trashItem(at: r.url, resultingItemURL: nil)
             if let raw = r.raw { try? FileManager.default.trashItem(at: raw, resultingItemURL: nil) }
         }
         refreshRecordings()
-    }
-
-    /// Plays a recording's raw take through the current EQ, gate and compressor.
-    func startAudition(_ r: Recording) {
-        guard let raw = r.raw else { return }
-        guard !recording else { note("Stop recording to play a take."); return }
-        stopAudition()
-        player.loop = auditionLoop
-        guard player.start(raw) else { error = "Couldn't play that recording."; return }
-        auditioning = r.url
-        pushDSP()
-    }
-
-    func stopAudition() {
-        guard auditioning != nil else { return }
-        player.stop()
-        auditioning = nil
-        meters.auditionProgress = 0
-        if !monitoring { scope.clear(); historyColumn = 0 }
     }
 
     var recordingsURL: URL { var s = Settings(); s.recordingsFolder = recordingsFolder; return s.recordingsURL }

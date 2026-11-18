@@ -256,11 +256,11 @@ extension Engine {
         case _ where command.hasPrefix("gain "): if let v = Double(command.dropFirst(5)) { refreshMicGain(); setMicGain(v) }
         case _ where command.hasPrefix("history-restore "): if let n = Int(command.dropFirst(16)), n >= 1, n <= history.count { restore(history[n - 1]) }
         case "history-clear": clearHistory()
-        case "play-stop": stopAudition()
+        case "play-stop": MainActor.assumeIsolated { stopPlaying() }
         case _ where command.hasPrefix("play "):
             let want = String(command.dropFirst(5))
             if let r = Recording.list(in: recordingsURL).first(where: { $0.url.lastPathComponent == want || $0.url.deletingPathExtension().lastPathComponent == want }) {
-                if r.raw != nil { startAudition(r) } else { error = "That recording has no raw take, so it can't be replayed through the EQ." }
+                MainActor.assumeIsolated { play(r) }
             } else { error = "No recording is named \(want)." }
         case _ where command.hasPrefix("autoeq-measure"):
             // autoeq-measure <seconds> <target> <strength> <apply|keep>

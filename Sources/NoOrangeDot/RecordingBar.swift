@@ -67,33 +67,6 @@ struct SavedChip: View {
     }
 }
 
-/// What is playing through the EQ, wherever the page is scrolled.
-struct PlayingChip: View {
-    @EnvironmentObject var engine: Engine
-
-    var body: some View {
-        let take = engine.recordings.first { $0.url == engine.auditioning }
-        HStack(spacing: 2) {
-            HStack(spacing: 7) {
-                Image(systemName: "speaker.wave.2.fill").foregroundStyle(Color.accentColor)
-                Text(take.map { Recording.friendly($0.date) } ?? "Playing").font(.system(size: 13, weight: .medium)).lineLimit(1)
-                if let take {
-                    Live(engine.meters) { m in
-                        Text("\(Recording.clock(m.auditionProgress * take.seconds)) / \(Recording.clock(take.seconds))")
-                            .font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.leading, 10).padding(.trailing, 4)
-            .accessibilityElement(children: .combine)
-            BarIcon(symbol: "stop.fill", label: "Stop playing") { engine.stopPlaying() }
-        }
-        .padding(2).frame(minHeight: 30)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.accentColor.opacity(0.25), lineWidth: 1))
-    }
-}
-
 /// A symbol button sized to sit inside the top bar's chips.
 struct BarIcon: View {
     let symbol: String

@@ -99,14 +99,6 @@ extension Engine {
         if panel.runModal() == .OK, let url = panel.url { recordingsFolder = url.path }
     }
 
-    @MainActor func play(_ r: Recording) {
-        guard !recording else { note("Stop recording to play a take."); return }
-        Playback.shared.stop()
-        if r.raw != nil { startAudition(r) } else { stopAudition(); Playback.shared.toggle(r.url) }
-    }
-
-    @MainActor func stopPlaying() { stopAudition(); Playback.shared.stop() }
-
     func note(_ text: String) {
         notice = text
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in if self?.notice == text { self?.notice = nil } }

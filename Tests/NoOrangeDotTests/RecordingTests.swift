@@ -177,6 +177,33 @@ final class RecordingTests: XCTestCase {
         XCTAssertThrowsError(try RecordingTake(url: url, sampleRate: 48000, stereo: false))
         XCTAssertEqual(try Data(contentsOf: url), before)
     }
+
+    func testSavingASelectionCopiesThatPartOfBothFiles() throws {
+        let writer = RecordingWriter()
+        writer.attach(try RecordingTake(url: url, sampleRate: 48000, stereo: false))
+        for _ in 0..<94 { sendBlock(writer) }   // just over two seconds
+        XCTAssertNil(try XCTUnwrap(writer.detach()).close())
+        let clip = folder.appendingPathComponent("take clip.wav")
+        try Engine.copy(0.5...1.5, from: url, to: clip)
+        try Engine.copy(0.5...1.5, from: Recording.rawURL(for: url), to: Recording.rawURL(for: clip))
+        for file in [clip, Recording.rawURL(for: clip)] {
+            let f = try AVAudioFile(forReading: file)
+            XCTAssertEqual(f.length, 48000, "one second at 48 kHz")
+            XCTAssertEqual(f.fileFormat.sampleRate, 48000)
+        }
+        XCTAssertEqual(try AVAudioFile(forReading: url).length, 94 * 1024, "the original is untouched")
+        XCTAssertEqual(Recording.list(in: folder).first { $0.url.lastPathComponent == clip.lastPathComponent }?.raw?.lastPathComponent, ".take clip.raw.wav")
+    }
+
+    func testWaveformPeaksFollowTheLoudestSampleInEachSlice() {
+        var samples = [Float](repeating: 0.1, count: 6000)
+        samples[4500] = -0.9
+        let peaks = samples.withUnsafeBufferPointer { AuditionPlayer.peaks($0.baseAddress!, count: $0.count) }
+        XCTAssertEqual(peaks.count, AuditionPlayer.peakCount)
+        XCTAssertEqual(peaks.max(), 0.9)
+        XCTAssertEqual(peaks.firstIndex(of: 0.9), 450)
+        XCTAssertEqual(PlayerBar.time(65.25), "1:05.2")
+    }
 }
 
 final class MicrophoneInputTests: XCTestCase {
@@ -211,4 +238,5 @@ final class MicrophoneInputTests: XCTestCase {
         XCTAssertEqual(left, [0.1, 0.2, 0])
         XCTAssertEqual(right, [-0.4, -0.5, 0])
     }
+
 }

@@ -44,7 +44,6 @@ final class ReferenceVoice: NSObject, ObservableObject, AVAudioPlayerDelegate, A
 
     private func prepare() {
         stop()
-        Playback.shared.stop()
         if let cachedWave { play(cachedWave); return }
         guard let voice = Self.referenceVoice else {
             state = .failed("The built-in English reference voice isn't available on this Mac.")
