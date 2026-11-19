@@ -237,6 +237,8 @@ final class Engine: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self?.rebuild() }
         }
+        // A file from before the setting existed gets the value worked out above written into it.
+        if s.systemMicrophone == nil { changed() }
         rebuild()
     }
 
