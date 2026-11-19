@@ -93,6 +93,10 @@ final class Engine: ObservableObject {
     @Published var canRenameMic = false
     /// True while the Mac's own input setting points at the virtual mic.
     @Published var isSystemMicrophone = false
+    /// Keep the virtual mic as the Mac's input. Saved in config.json.
+    @Published var keepSystemMicrophone = false { didSet { if keepSystemMicrophone != oldValue { changed() } } }
+    /// When each input appeared, to tell one that took the Mac's input as it connected from one chosen by hand.
+    var inputConnectedAt: [String: Date] = [:]
 
     // Live analysis, for the spectrum, the spectrogram and automatic EQ. All of it needs the mic open,
     // so it only runs while `monitoring` is on, and the editor turns that off when it closes.
@@ -193,6 +197,7 @@ final class Engine: ObservableObject {
         icon = s.icon
         appIcon = s.appIcon
         showInDock = s.showInDock
+        keepSystemMicrophone = s.systemMicrophone ?? (HAL.defaultInputUID() == Brand.micUID)
         autoUpdate = s.autoUpdate
         updateFeed = s.updateFeed
         presets = s.presets
@@ -221,7 +226,7 @@ final class Engine: ObservableObject {
         var a = HAL.addr(kAudioHardwarePropertyDevices)
         AudioObjectAddPropertyListenerBlock(HAL.system, &a, .main) { [weak self] _, _ in self?.devicesChanged() }
         var d = HAL.addr(kAudioHardwarePropertyDefaultInputDevice)
-        AudioObjectAddPropertyListenerBlock(HAL.system, &d, .main) { [weak self] _, _ in self?.refreshSystemMicrophone() }
+        AudioObjectAddPropertyListenerBlock(HAL.system, &d, .main) { [weak self] _, _ in self?.systemInputChanged() }
         var o = HAL.addr(kAudioHardwarePropertyDefaultOutputDevice)
         AudioObjectAddPropertyListenerBlock(HAL.system, &o, .main) { [weak self] _, _ in self?.outputChanged() }
         // Core Audio restarts when a driver is installed. Every device ID and listener we hold dies with it.
@@ -267,6 +272,9 @@ final class Engine: ObservableObject {
     private func refreshInputs() -> String {
         let previouslyAvailable = inputs.map(\.uid)
         inputs = HAL.inputDevices()
+        if !previouslyAvailable.isEmpty {
+            for input in inputs where !previouslyAvailable.contains(input.uid) { inputConnectedAt[input.uid] = Date() }
+        }
         var namesChanged = false
         for input in inputs {
             if micName(for: input.uid) != input.name { namesChanged = true }
@@ -363,7 +371,7 @@ final class Engine: ObservableObject {
         ioProc = proc
         error = nil
         applyMicName()
-        refreshSystemMicrophone()
+        holdSystemMicrophone()
         clientsChanged()
     }
 
@@ -411,9 +419,10 @@ final class Engine: ObservableObject {
         isSystemMicrophone = HAL.defaultInputUID() == Brand.micUID
     }
 
-    /// Points the Mac's input setting at the virtual mic, or puts it back where it was.
+    /// Points the Mac's input setting at the virtual mic and keeps it there, or puts it back where it was.
     func setSystemMicrophone(_ on: Bool) {
         let d = UserDefaults.standard
+        keepSystemMicrophone = on
         if on {
             guard let mic = micDevice else { return }
             if let current = HAL.defaultInputUID(), current != Brand.micUID { d.set(current, forKey: "previousSystemInput") }
@@ -423,6 +432,36 @@ final class Engine: ObservableObject {
             if let back, !HAL.setDefaultInput(back) { error = "Couldn't change the Mac's input setting." }
         }
         refreshSystemMicrophone()
+    }
+
+    /// The Mac's input changed. While the setting is on, a device that took the input as it connected is
+    /// switched back. Choosing another input in System Settings or Control Center turns the setting off.
+    func systemInputChanged() {
+        refreshSystemMicrophone()
+        guard HAL.device(uid: Brand.micUID) != nil, let uid = HAL.defaultInputUID() else { return }
+        if isSystemMicrophone { keepSystemMicrophone = true; return }
+        guard keepSystemMicrophone else { return }
+        guard Self.tookOver(uid, listed: inputs.map(\.uid), connectedAt: inputConnectedAt[uid]) else {
+            keepSystemMicrophone = false
+            return
+        }
+        let name = HAL.device(uid: uid).flatMap { HAL.string($0, kAudioObjectPropertyName) } ?? "A new device"
+        holdSystemMicrophone()
+        if isSystemMicrophone { note("\(name) took over as the Mac's microphone. Switched back to \(micDisplayName).") }
+    }
+
+    /// Puts the Mac's input back on the virtual mic while the setting is on.
+    func holdSystemMicrophone() {
+        refreshSystemMicrophone()
+        guard keepSystemMicrophone, !isSystemMicrophone, let mic = HAL.device(uid: Brand.micUID) else { return }
+        if !HAL.setDefaultInput(mic) { error = "Couldn't change the Mac's input setting." }
+        refreshSystemMicrophone()
+    }
+
+    /// An input that isn't listed yet, or appeared in the last 10 seconds, took the Mac's input by connecting.
+    static func tookOver(_ uid: String, listed: [String], connectedAt: Date?, now: Date = Date()) -> Bool {
+        guard listed.contains(uid) else { return true }
+        return connectedAt.map { now.timeIntervalSince($0) < 10 } ?? false
     }
 
     // MARK: On-demand start/stop

@@ -101,6 +101,9 @@ struct Settings: Codable, Equatable {
     var appIcon = "paint"
     /// Keep a Dock icon while the window is closed. Off means the app lives in the menu bar only.
     var showInDock = false
+    /// Keep the virtual mic as the Mac's input. A device that takes the input over as it connects, the way
+    /// AirPods do, is switched back. Missing means never set: the app keeps it if it already is the Mac's input.
+    var systemMicrophone: Bool?
     /// System-wide shortcuts, written like "ctrl+opt+cmd+m". Empty means none. The app ships with none set.
     var muteShortcut = ""
     var recordShortcut = ""
@@ -168,6 +171,7 @@ struct Settings: Codable, Equatable {
         icon = try c.decodeIfPresent(String.self, forKey: .icon) ?? "eclipse"
         appIcon = try c.decodeIfPresent(String.self, forKey: .appIcon) ?? "paint"
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? false
+        systemMicrophone = try c.decodeIfPresent(Bool.self, forKey: .systemMicrophone)
         muteShortcut = try c.decodeIfPresent(String.self, forKey: .muteShortcut) ?? ""
         recordShortcut = try c.decodeIfPresent(String.self, forKey: .recordShortcut) ?? ""
         shortcuts = try c.decodeIfPresent([String: String].self, forKey: .shortcuts) ?? [:]

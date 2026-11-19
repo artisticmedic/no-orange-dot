@@ -656,7 +656,7 @@ struct EditorView: View {
                 }
             }
             RowDivider()
-            Row(title: "Use as the Mac's microphone", caption: "Apps that follow the Mac's sound settings get \(engine.micDisplayName).") {
+            Row(title: "Use as the Mac's microphone", caption: "Apps that follow the Mac's sound settings get \(engine.micDisplayName). If AirPods or another device take over as they connect, it switches back.") {
                 Toggle("Use as the Mac's microphone", isOn: Binding(get: { engine.isSystemMicrophone }, set: { engine.setSystemMicrophone($0) })).labelsHidden().toggleStyle(.switch)
             }
             if let ms = engine.lastWakeMs {

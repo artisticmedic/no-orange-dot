@@ -79,6 +79,23 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(kept.micOrder, ["a", "b"])
     }
 
+    func testKeepingTheSystemMicrophoneIsSavedAndUnsetInOlderFiles() throws {
+        let old = try JSONDecoder().decode(Settings.self, from: Data(#"{"inputUID":"xlr"}"#.utf8))
+        XCTAssertNil(old.systemMicrophone, "an older file leaves it to what the Mac's input already is")
+        var s = Settings()
+        s.systemMicrophone = true
+        let again = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(again.systemMicrophone, true)
+    }
+
+    func testOnlyAnInputThatJustConnectedCountsAsTakingOverTheMacsInput() {
+        let now = Date()
+        XCTAssertTrue(Engine.tookOver("airpods", listed: ["xlr"], connectedAt: nil, now: now), "not listed yet: it is connecting")
+        XCTAssertTrue(Engine.tookOver("airpods", listed: ["xlr", "airpods"], connectedAt: now.addingTimeInterval(-3), now: now))
+        XCTAssertFalse(Engine.tookOver("airpods", listed: ["xlr", "airpods"], connectedAt: now.addingTimeInterval(-60), now: now), "chosen by hand later")
+        XCTAssertFalse(Engine.tookOver("builtin", listed: ["xlr", "builtin"], connectedAt: nil, now: now), "there since launch")
+    }
+
     func testDevicesMacOSMakesPerLaunchAreDroppedWhenLoading() throws {
         let json = #"{"inputUID":"xlr","micOrder":["xlr","CADefaultDeviceAggregate-9765-0"],"mics":{"xlr":{"name":"Wave"},"CADefaultDeviceAggregate-18478-1":{"name":"CADefaultDeviceAggregate-18478-1"}}}"#
         let s = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))

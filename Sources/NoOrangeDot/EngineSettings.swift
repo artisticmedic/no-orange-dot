@@ -17,7 +17,7 @@ extension Engine {
 
     var settings: Settings {
         var s = Settings()
-        s.muted = muted; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.micOrder = micOrder; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut; s.shortcuts = shortcuts
+        s.muted = muted; s.systemMicrophone = keepSystemMicrophone; s.inputUID = inputUID; s.icon = icon; s.appIcon = appIcon; s.showInDock = showInDock; s.autoUpdate = autoUpdate; s.updateFeed = updateFeed; s.micOrder = micOrder; s.recordingsFolder = recordingsFolder; s.micName = micName; s.muteShortcut = muteShortcut; s.recordShortcut = recordShortcut; s.shortcuts = shortcuts
         s.mics = mics
         for (uid, name) in seenNames {
             var profile = s.mics[uid] ?? MicProfile()
@@ -224,6 +224,7 @@ extension Engine {
         if s.micName != micName { micName = s.micName }
         if s.inputUID != inputUID, inputs.contains(where: { $0.uid == s.inputUID }) { chooseInput(s.inputUID) }
         applying = false
+        if let keep = s.systemMicrophone, keep != keepSystemMicrophone { setSystemMicrophone(keep) }
         eqHistory.selectMic(inputUID, name: micName(for: inputUID) ?? "")
         load(mics[inputUID] ?? MicProfile())
         if inputUID == oldInputUID, bands != oldBands {
