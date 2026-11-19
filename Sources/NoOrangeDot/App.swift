@@ -529,10 +529,11 @@ struct EditorView: View {
                 switch tab {
                 case .sound:
                     VStack(spacing: 14) {
-                        PresetsCard()
                         EQView(graphHeight: 280)
-                        DynamicsView()
                         VoiceCheckCard()
+                        ToneCard()
+                        DynamicsView()
+                        PresetsCard()
                     }
                 case .recordings:
                     RecordingsView()
@@ -751,7 +752,7 @@ struct DynamicsView: View {
 
     var body: some View {
         Card {
-            Row(title: "Dynamics", caption: engine.original ? "Off while Hear Without Processing is on." : "These run after the tone, top to bottom. Open a row to see its settings without turning it on.") { EmptyView() }
+            Row(title: "Dynamics", caption: engine.original ? "Off while Hear Without Processing is on." : "These run after the EQ, top to bottom. Open a row to see its settings without turning it on.") { EmptyView() }
             RowDivider()
             header("gate", "Noise gate", "Turns the mic down between phrases.", isOn: $engine.dynamics.gateOn)
             if isOpen("gate") {

@@ -63,14 +63,15 @@ struct ToneControl: Identifiable, Equatable {
     }
 }
 
-struct ToneSliders: View {
+struct ToneCard: View {
     @EnvironmentObject var engine: Engine
 
     var body: some View {
-        VStack(spacing: 0) {
+        Card {
+            Row(title: "Tone", caption: "Shape your sound in plain words. Each slider moves a band in the equalizer.") { EmptyView() }
             ForEach(ToneControl.all) { ToneRow(control: $0) }
+            Spacer().frame(height: 8)
         }
-        .padding(.bottom, 8)
         .opacity(engine.bypass || engine.original ? 0.45 : 1)
     }
 }

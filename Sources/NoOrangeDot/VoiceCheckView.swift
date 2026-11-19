@@ -32,6 +32,9 @@ struct VoiceCheckCard: View {
         if engine.muted { return ("Mic muted", "Unmute to see your level.") }
         if engine.checkingVoice, engine.running { return ("Mic open for voice check", "Speak from your usual distance. Nothing is played back.") }
         if engine.running { return ("Mic open", "Measured after EQ and dynamics.") }
+        if let app = engine.directUsers.first, let mic = engine.inputs.first(where: { $0.uid == engine.inputUID })?.name {
+            return ("\(app) is reading \(mic) directly", "So \(app) hears it without your sound, and nothing shows here. Choose \(engine.micDisplayName) as the microphone in \(app), or start Check My Voice.")
+        }
         return ("Mic off — start Check My Voice to see your level.", "The mic stays closed until something uses it.")
     }
 
