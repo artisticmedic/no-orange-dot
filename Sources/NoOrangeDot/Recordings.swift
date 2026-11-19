@@ -90,8 +90,8 @@ struct RecordingsView: View {
 
     var body: some View {
         Card {
-            Row(title: engine.recordings.isEmpty ? "Recordings" : "Recordings (\(engine.recordings.count))",
-                caption: "Saved in \((engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath). Choose one to open it in the player below.") {
+            CardHeader(title: engine.recordings.isEmpty ? "Recordings" : "Recordings (\(engine.recordings.count))",
+                       caption: "Saved in \((engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath). Choose one to open it in the player below.") {
                 HStack(spacing: 8) {
                     Button("Open Folder") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
                     if !engine.recordings.isEmpty {

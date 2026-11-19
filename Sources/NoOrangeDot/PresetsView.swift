@@ -10,23 +10,18 @@ struct PresetsCard: View {
     var body: some View {
         let current = engine.currentPreset
         Card {
-            Row(title: "Presets", caption: caption(current)) {
-                HStack(spacing: 8) {
-                    Button { name = current?.name ?? suggestedName; naming = true } label: { Label("Save…", systemImage: "plus") }
-                        .buttonStyle(PillButtonStyle())
-                        .help("Save the EQ, gate, compressor, de-esser, limiter and output level as a preset")
+            CardHeader(title: "Presets", caption: caption(current)) {
+                HStack(spacing: 2) {
+                    IconButton(symbol: "plus", label: "Save the current sound as a preset") { name = current?.name ?? suggestedName; naming = true }
                     if !engine.presets.isEmpty { manage(current) }
                 }
             }
-            if !engine.presets.isEmpty {
-                FlowLayout(spacing: 6) {
-                    ForEach(Array(engine.presets.enumerated()), id: \.element.id) { i, preset in
-                        chip(i, preset, isCurrent: preset.id == current?.id)
-                    }
-                }
-                .padding(.horizontal, 14).padding(.bottom, 12)
+            ForEach(Array(engine.presets.enumerated()), id: \.element.id) { i, preset in
+                row(i, preset, isCurrent: preset.id == current?.id)
             }
+            Spacer().frame(height: engine.presets.isEmpty ? 0 : 6)
         }
+        .help("Loop a recording in the player, then click presets to hear each on the same words.")
         .alert("Save this sound as a preset", isPresented: $naming) {
             TextField("Name", text: $name)
             Button("Save") { engine.savePreset(named: name) }
@@ -38,10 +33,10 @@ struct PresetsCard: View {
     }
 
     private func caption(_ current: SoundPreset?) -> String {
-        if engine.presets.isEmpty { return "Save the current sound to come back to it, or to compare sounds on the same recording." }
-        if let current { return "Using \(current.name). Loop a recording in the player below, then click presets to hear each on the same words." }
-        if let last = engine.presets.first(where: { $0.id == engine.lastPreset }) { return "Changed since you chose \(last.name). Save to keep it." }
-        return "The current sound isn't saved as a preset."
+        if engine.presets.isEmpty { return "Save the current sound to come back to it." }
+        if let current { return "Using \(current.name)" }
+        if let last = engine.presets.first(where: { $0.id == engine.lastPreset }) { return "Changed since \(last.name)" }
+        return "Not saved as a preset"
     }
 
     private var suggestedName: String {
@@ -50,24 +45,25 @@ struct PresetsCard: View {
         return "Preset \(n)"
     }
 
-    private func chip(_ i: Int, _ preset: SoundPreset, isCurrent: Bool) -> some View {
+    private func row(_ i: Int, _ preset: SoundPreset, isCurrent: Bool) -> some View {
         Button { engine.use(preset) } label: {
-            HStack(spacing: 7) {
-                if i < 9 {
-                    Text("\(i + 1)").font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary)
-                        .frame(width: 18, height: 18)
-                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(isCurrent ? Color.white : Color.primary.opacity(0.07)))
+            HStack(spacing: 10) {
+                Text(i < 9 ? "\(i + 1)" : "").font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(isCurrent ? Color.white : Color.secondary)
+                    .frame(width: 20, height: 20)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(isCurrent ? Color.accentColor : Color.primary.opacity(0.07)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(preset.name).font(.system(size: 13, weight: isCurrent ? .semibold : .regular)).lineLimit(1)
+                    Text(preset.summary).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }
-                Text(preset.name).font(.system(size: 13, weight: isCurrent ? .semibold : .regular)).lineLimit(1)
-                    .foregroundStyle(isCurrent ? Color.white : Color.primary)
+                Spacer(minLength: 4)
             }
-            .padding(.leading, i < 9 ? 6 : 12).padding(.trailing, 12).frame(height: 30)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(isCurrent ? Color.accentColor : Color.primary.opacity(0.07)))
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isCurrent ? Color.accentColor.opacity(0.12) : .clear))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(preset.summary)
+        .padding(.horizontal, 6)
         .accessibilityLabel("Use preset \(preset.name)").accessibilityValue(preset.summary)
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
@@ -83,52 +79,9 @@ struct PresetsCard: View {
                 ForEach(engine.presets) { p in Button(p.name) { engine.deletePreset(p) } }
             }
         } label: {
-            HStack(spacing: 6) {
-                Text("Manage")
-                Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-            }
+            Image(systemName: "ellipsis.circle").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34).contentShape(Rectangle())
         }
-        .menuStyle(.button).buttonStyle(PillButtonStyle()).menuIndicator(.hidden).fixedSize()
-        .accessibilityLabel("Manage presets")
-    }
-}
-
-/// Lays its children out in rows, wrapping to the next row when one is full.
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(subviews, width: proposal.width ?? .infinity)
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
-        return CGSize(width: proposal.width ?? rows.map(\.width).max() ?? 0, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var y = bounds.minY
-        for row in arrange(subviews, width: bounds.width) {
-            var x = bounds.minX
-            for i in row.items {
-                let size = subviews[i].sizeThatFits(.unspecified)
-                subviews[i].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-                x += size.width + spacing
-            }
-            y += row.height + spacing
-        }
-    }
-
-    private struct Line { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
-
-    private func arrange(_ subviews: Subviews, width: CGFloat) -> [Line] {
-        var lines: [Line] = [Line()]
-        for i in subviews.indices {
-            let size = subviews[i].sizeThatFits(.unspecified)
-            if !lines[lines.count - 1].items.isEmpty, lines[lines.count - 1].width + spacing + size.width > width { lines.append(Line()) }
-            var line = lines[lines.count - 1]
-            line.width += (line.items.isEmpty ? 0 : spacing) + size.width
-            line.height = max(line.height, size.height)
-            line.items.append(i)
-            lines[lines.count - 1] = line
-        }
-        return lines
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Replace or delete presets").accessibilityLabel("Manage presets")
     }
 }

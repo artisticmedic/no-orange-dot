@@ -40,32 +40,7 @@ struct VoiceCheckCard: View {
 
     var body: some View {
         Card {
-            Row(title: "Voice level", caption: engine.recordings.isEmpty ? "Compare at the same headphone or speaker volume." : "Compare at the same headphone or speaker volume. Play a recording in the player below to measure it.") {
-                HStack(spacing: 8) {
-                    Button {
-                        reference.stop()
-                        engine.stopPlaying()
-                        engine.checkingVoice.toggle()
-                    } label: {
-                        Label(engine.checkingVoice ? "Stop Check" : "Check My Voice", systemImage: engine.checkingVoice ? "stop.fill" : "mic")
-                    }
-                    .buttonStyle(PillButtonStyle(prominent: !engine.running && !engine.checkingVoice && !playing))
-                    .disabled((engine.muted || noMicrophone) && !engine.checkingVoice)
-                    Button {
-                        if referenceActive { reference.stop() }
-                        else {
-                            engine.stopPlaying()
-                            engine.checkingVoice = false
-                            reference.toggle()
-                        }
-                    } label: {
-                        Label(referenceLabel, systemImage: referenceActive ? "stop.fill" : "speaker.wave.2")
-                    }
-                    .buttonStyle(PillButtonStyle())
-                    .disabled(engine.recording || engine.listenBack)
-                    .help("Play a spoken sample at a fixed level.")
-                }
-            }
+            CardHeader(title: "Voice level")
             Live(engine.meters) { meters in
                 let reading = playing ? meters.playbackVoice : meters.voice
                 let active = playing || (engine.running && !engine.muted)
@@ -74,12 +49,37 @@ struct VoiceCheckCard: View {
                                   suppressed: referenceActive || (!playing && engine.muted))
             }
             .padding(.horizontal, 14).padding(.bottom, 12)
+            HStack(spacing: 8) {
+                Button {
+                    reference.stop()
+                    engine.stopPlaying()
+                    engine.checkingVoice.toggle()
+                } label: {
+                    Label(engine.checkingVoice ? "Stop Check" : "Check My Voice", systemImage: engine.checkingVoice ? "stop.fill" : "mic")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillButtonStyle(prominent: !engine.running && !engine.checkingVoice && !playing))
+                .disabled((engine.muted || noMicrophone) && !engine.checkingVoice)
+                Button {
+                    if referenceActive { reference.stop() }
+                    else {
+                        engine.stopPlaying()
+                        engine.checkingVoice = false
+                        reference.toggle()
+                    }
+                } label: {
+                    Label(referenceActive ? "Stop" : "Reference", systemImage: referenceActive ? "stop.fill" : "speaker.wave.2")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillButtonStyle())
+                .disabled(engine.recording || engine.listenBack)
+                .help("Play a spoken sample at a fixed level. Compare at the same headphone or speaker volume.")
+            }
+            .padding(.horizontal, 14).padding(.bottom, 12)
             RowDivider()
             SliderRow(label: "Output", value: String(format: "%+.1f dB", engine.outputGainDB), binding: $engine.outputGainDB, range: -12...12)
-                .padding(.vertical, 4)
-            Text("A starting range for speech, measured after EQ and dynamics. Your listening volume stays up to you.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
+                .padding(.vertical, 6)
+                .help("Applied after the EQ and dynamics. Your listening volume stays up to you.")
             if engine.recording || engine.listenBack {
                 Text(engine.recording ? "Stop recording before playing the reference." : "Turn off Hear myself to compare with the reference on its own.")
                     .font(.system(size: 13)).foregroundStyle(.secondary)
@@ -154,11 +154,11 @@ struct VoiceLevelDisplay: View {
             HStack {
                 Text("Quiet")
                 Spacer()
-                Text("Reference −20 · Speaking range −24 to −16")
-                Spacer()
                 Text("Loud")
             }
             .font(.system(size: 12)).foregroundStyle(.secondary)
+            Text("Shaded: speaking range, −24 to −16 dBFS. Line: the reference voice, −20.")
+                .font(.system(size: 11)).foregroundStyle(.tertiary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Voice level. \(label)")

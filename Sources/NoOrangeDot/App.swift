@@ -117,15 +117,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if editor == nil {
             let host = NSHostingController(rootView: EditorView().environmentObject(engine))
             host.sizingOptions = [.minSize]
+            // SwiftUI builds the toolbar and title from the view, so the window looks like any other Mac app's.
+            host.sceneBridgingOptions = [.toolbars, .title]
             let w = NSWindow(contentViewController: host)
             w.title = Brand.short
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-            w.titlebarAppearsTransparent = true
-            w.titleVisibility = .hidden
-            // An empty unified toolbar gives the taller title bar, so the window buttons sit level with our own top bar.
-            w.toolbar = NSToolbar()
             w.toolbarStyle = .unified
-            w.titlebarSeparatorStyle = .none
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.setContentSize(NSSize(width: 980, height: 700))
@@ -250,6 +247,43 @@ struct Row<Trailing: View>: View {
     }
 }
 
+/// The title at the top of a card, weightier than the rows under it.
+struct CardHeader<Trailing: View>: View {
+    let title: String
+    var caption: String?
+    @ViewBuilder var trailing: Trailing
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 14, weight: .semibold))
+                if let caption { Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 10)
+    }
+}
+
+extension CardHeader where Trailing == EmptyView {
+    init(title: String, caption: String? = nil) { self.init(title: title, caption: caption) { EmptyView() } }
+}
+
+/// The Sound page: the editor on the left, level and presets beside it when the window is wide enough.
+struct SoundPage: View {
+    let wide: Bool
+    var body: some View {
+        if wide {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(spacing: 16) { EQView(graphHeight: 300); ToneCard(); DynamicsView() }
+                VStack(spacing: 16) { VoiceCheckCard(); PresetsCard() }.frame(width: 330)
+            }
+        } else {
+            VStack(spacing: 16) { EQView(graphHeight: 260); VoiceCheckCard(); ToneCard(); DynamicsView(); PresetsCard() }
+        }
+    }
+}
+
 struct RowDivider: View {
     var body: some View { Divider().padding(.leading, 14) }
 }
@@ -270,7 +304,8 @@ struct SliderRow: View {
     }
 }
 
-struct TopBarButtonStyle: ButtonStyle {
+/// A toggle-like button: tinted while on.
+struct ToggleButtonStyle: ButtonStyle {
     var active: Bool
     var tint: Color
     func makeBody(configuration: Configuration) -> some View {
@@ -283,18 +318,6 @@ struct TopBarButtonStyle: ButtonStyle {
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(active ? tint.opacity(0.35) : Color.primary.opacity(0.10), lineWidth: 1))
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
-}
-
-/// The system sidebar material, so the window's left column picks up the desktop behind it.
-struct SidebarBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let v = NSVisualEffectView()
-        v.material = .sidebar
-        v.blendingMode = .behindWindow
-        v.state = .followsWindowActiveState
-        return v
-    }
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
 /// Every other button with words on it. `prominent` inverts it: label colour fill, background-colour text.
@@ -344,27 +367,33 @@ struct EditorView: View {
     @EnvironmentObject var engine: Engine
     @ObservedObject private var updater = Updater.shared
     @State var tab: EditorTab = .sound
+    @State private var width: CGFloat = 0
+
+    private var maxWidth: CGFloat { tab == .sound ? 1180 : 760 }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar.frame(width: 220)
-            Rectangle().fill(Color.primary.opacity(0.10)).frame(width: 1)
+        NavigationSplitView {
+            sidebar.navigationSplitViewColumnWidth(min: 210, ideal: 232, max: 300)
+        } detail: {
             VStack(spacing: 0) {
-                topBar
-                Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
                 ScrollView {
-                    page.padding(.horizontal, 28).padding(.vertical, 24)
-                        .frame(maxWidth: 760).frame(maxWidth: .infinity)
+                    page.padding(.horizontal, 24).padding(.vertical, 20)
+                        .frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
                 }
+                .background(GeometryReader { g in
+                    Color.clear.onAppear { width = g.size.width }.onChange(of: g.size.width) { _, w in width = w }
+                })
                 if engine.driverInstalled, tab != .settings, !engine.recordings.isEmpty {
-                    Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
-                    PlayerBar().frame(maxWidth: 760).frame(maxWidth: .infinity)
+                    Divider()
+                    PlayerBar().frame(maxWidth: maxWidth + 8).frame(maxWidth: .infinity)
                 }
             }
             .background(Surface.page)
+            .overlay(alignment: .top) { notice }
+            .navigationTitle(tab.rawValue)
+            .toolbar { toolbar }
         }
-        .frame(minWidth: 860, minHeight: 560)
-        .ignoresSafeArea()
+        .frame(minWidth: 900, minHeight: 600)
         .onAppear { takeRequest() }
         .onReceive(NotificationCenter.default.publisher(for: .showTab)) { _ in takeRequest() }
     }
@@ -376,39 +405,21 @@ struct EditorView: View {
     // MARK: Sidebar
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .top, spacing: 9) {
-                HeaderLogo(appIcon: engine.appIcon, size: 30)
-                Text(Brand.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 10).padding(.bottom, 12)
-            if engine.driverInstalled {
-                MuteButton(muted: engine.muted) { engine.muted.toggle() }.padding(.horizontal, 4).padding(.bottom, 12)
-            }
+        List(selection: Binding(get: { Optional(tab) }, set: { if let t = $0 { tab = t } })) {
             ForEach(EditorTab.allCases) { t in
-                Button { tab = t } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: t.symbol).font(.system(size: 14, weight: .medium)).frame(width: 20)
-                            .foregroundStyle(tab == t ? Color.primary : Color.secondary)
-                        Text(t.rawValue).font(.system(size: 14, weight: tab == t ? .medium : .regular))
-                        Spacer()
-                        if t == .recordings, !engine.recordings.isEmpty {
-                            Text("\(engine.recordings.count)").font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 10).frame(height: 34)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(tab == t ? 0.10 : 0)))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(tab == t ? .isSelected : [])
+                Label(t.rawValue, systemImage: t.symbol)
+                    .badge(t == .recordings ? engine.recordings.count : 0)
+                    .tag(t)
             }
-            Spacer()
-            status
         }
-        .padding(.horizontal, 10).padding(.top, 62).padding(.bottom, 12)
-        .background(SidebarBackground())
+        .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 12) {
+                if engine.driverInstalled { MuteButton(muted: engine.muted) { engine.muted.toggle() } }
+                status
+            }
+            .padding(.horizontal, 12).padding(.bottom, 12)
+        }
     }
 
     /// What the mic is doing right now. Always on screen, whichever page is open.
@@ -416,7 +427,7 @@ struct EditorView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 slot.accessibilityHidden(true)
-                Text(engine.statusTitle).font(.system(size: 14, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85).truncationMode(.tail)
+                Text(engine.statusTitle).font(.system(size: 13, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.9)
                     .help(engine.statusDetail.isEmpty ? engine.statusTitle : "\(engine.statusTitle). \(engine.statusDetail).")
                 Spacer(minLength: 0)
             }
@@ -427,19 +438,18 @@ struct EditorView: View {
             }
             Live(engine.meters) { m in LevelMeter(level: engine.running ? m.level : 0) }.frame(height: 5).opacity(engine.running ? 1 : 0.4)
                 .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 10)
-            Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+            Divider()
             micMenu
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
     }
 
     /// Where the icon of the app using the mic goes. Empty and dashed while no app has it.
     @ViewBuilder private var slot: some View {
         if let icon = engine.listenerIcon, engine.running {
-            Image(nsImage: icon).resizable().interpolation(.high).frame(width: 30, height: 30)
+            Image(nsImage: icon).resizable().interpolation(.high).frame(width: 28, height: 28)
                 .overlay(alignment: .bottomTrailing) {
                     Circle().fill(engine.statusColor).frame(width: 9, height: 9)
                         .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5)).offset(x: 2, y: 2)
@@ -455,7 +465,7 @@ struct EditorView: View {
                     Image(systemName: "mic.fill").font(.system(size: 13)).foregroundStyle(.green)
                 }
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 28, height: 28)
         }
     }
 
@@ -481,43 +491,48 @@ struct EditorView: View {
         .help("Change the microphone").accessibilityLabel("Microphone")
     }
 
-    // MARK: Top bar
+    // MARK: Toolbar
 
-    private var topBar: some View {
-        HStack(spacing: 8) {
-            Text(tab.rawValue).font(.system(size: 15, weight: .semibold))
-            if engine.original {
-                Button { engine.original = false } label: { Label("Processing off", systemImage: "exclamationmark.circle") }
-                    .buttonStyle(TopBarButtonStyle(active: true, tint: .orange))
-                    .help("Hear Without Processing is on, for apps using the mic too. Click to turn your sound back on.")
-            }
-            if let notice = engine.notice {
-                Text(notice).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1).transition(.opacity)
-            }
-            Spacer()
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
             if engine.driverInstalled {
+                if engine.original {
+                    Button { engine.original = false } label: { Label("Processing off", systemImage: "exclamationmark.circle") }
+                        .labelStyle(.titleAndIcon).foregroundStyle(.orange)
+                        .help("Hear Without Processing is on, for apps using the mic too. Click to turn your sound back on.")
+                }
                 if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
-                Button { if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }; engine.listenBack.toggle() } label: { Label("Hear myself", systemImage: "headphones") }
-                    .buttonStyle(TopBarButtonStyle(active: engine.listenBack, tint: .accentColor))
-                    .help("Hear your own voice, with the EQ, in your headphones")
-                    .accessibilityLabel(engine.listenBack ? "Stop hearing yourself" : "Hear yourself")
+                Toggle(isOn: Binding(get: { engine.listenBack }, set: { on in
+                    if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }
+                    engine.listenBack = on
+                })) { Label("Hear myself", systemImage: "headphones") }
+                    .toggleStyle(.button).labelStyle(.titleAndIcon)
+                    .help("Hear your own voice, with your sound, in your headphones")
                 if engine.recording {
                     RecordingControls()
                 } else {
                     Button { engine.toggleRecording() } label: { Label("Record", systemImage: "record.circle") }
-                        .buttonStyle(TopBarButtonStyle(active: false, tint: .red))
-                        .accessibilityLabel("Record")
+                        .labelStyle(.titleAndIcon)
                 }
             }
         }
-        .padding(.leading, 28).padding(.trailing, 16)
-        .frame(height: 52)
+    }
+
+    @ViewBuilder private var notice: some View {
+        if let notice = engine.notice {
+            Text(notice).font(.system(size: 13, weight: .medium))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(.regularMaterial))
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+                .padding(.top, 10)
+                .transition(.opacity)
+        }
     }
 
     // MARK: Page
 
     @ViewBuilder private var page: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 16) {
             if let e = engine.configProblem ?? engine.error {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.system(size: 13)).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 6)
@@ -528,13 +543,7 @@ struct EditorView: View {
             } else {
                 switch tab {
                 case .sound:
-                    VStack(spacing: 14) {
-                        EQView(graphHeight: 280)
-                        VoiceCheckCard()
-                        ToneCard()
-                        DynamicsView()
-                        PresetsCard()
-                    }
+                    SoundPage(wide: width >= 1000)
                 case .recordings:
                     RecordingsView()
                 case .settings:
@@ -752,7 +761,7 @@ struct DynamicsView: View {
 
     var body: some View {
         Card {
-            Row(title: "Dynamics", caption: engine.original ? "Off while Hear Without Processing is on." : "These run after the EQ, top to bottom. Open a row to see its settings without turning it on.") { EmptyView() }
+            CardHeader(title: "Dynamics", caption: engine.original ? "Off while Hear Without Processing is on." : nil)
             RowDivider()
             header("gate", "Noise gate", "Turns the mic down between phrases.", isOn: $engine.dynamics.gateOn)
             if isOpen("gate") {
@@ -848,7 +857,7 @@ enum Render {
             for (name, view) in views {
                 if name != "editor-playing" { engine.cueSeconds = 0; engine.selection = nil }
                 let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, scheme))
-                let size = !name.hasPrefix("editor") ? host.fittingSize : NSSize(width: 980, height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700)
+                let size = !name.hasPrefix("editor") ? host.fittingSize : NSSize(width: Double(ProcessInfo.processInfo.environment["NOD_RENDER_WIDTH"] ?? "") ?? 980, height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700)
                 host.frame = NSRect(origin: .zero, size: size)
                 let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

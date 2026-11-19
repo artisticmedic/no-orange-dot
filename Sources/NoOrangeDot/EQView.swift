@@ -12,7 +12,7 @@ struct EQView: View {
 
     var body: some View {
         Card {
-            Row(title: "Equalizer", caption: engine.original ? "Processing is off: you're hearing the mic as it is." : readout ?? "Drag a dot to adjust a band.") {
+            CardHeader(title: "Equalizer", caption: engine.original ? "Processing is off: you're hearing the mic as it is." : readout ?? "Drag a dot to adjust a band.") {
                 HStack(spacing: 6) {
                     IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { engine.undoEQ() }
                         .disabled(!engine.canUndoEQ).opacity(engine.canUndoEQ ? 1 : 0.35)
@@ -40,9 +40,9 @@ struct EQView: View {
     /// What draws on the graph, in one line under it.
     private var viewOptions: some View {
         HStack(spacing: 16) {
-            Toggle("See your voice", isOn: $engine.monitoring).toggleStyle(.switch).controlSize(.mini)
+            Toggle("See your voice", isOn: $engine.monitoring).toggleStyle(.switch).controlSize(.small)
                 .help(engine.monitoring ? "The mic is open while this is on." : "Shows your live voice behind the curve. Opens the mic.")
-            Toggle("Heat map", isOn: $heatMap).toggleStyle(.switch).controlSize(.mini)
+            Toggle("Heat map", isOn: $heatMap).toggleStyle(.switch).controlSize(.small)
                 .help("Your voice over time: pitch runs bottom to top, brighter is louder.")
             Spacer()
             if live {
@@ -50,8 +50,8 @@ struct EQView: View {
                 legend(.orange, "The EQ is taking away")
             }
         }
-        .font(.system(size: 12))
-        .padding(.horizontal, 14).padding(.vertical, 9)
+        .font(.system(size: 13))
+        .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
     private var startMenu: some View {

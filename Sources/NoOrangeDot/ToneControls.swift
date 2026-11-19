@@ -68,7 +68,7 @@ struct ToneCard: View {
 
     var body: some View {
         Card {
-            Row(title: "Tone", caption: "Shape your sound in plain words. Each slider moves a band in the equalizer.") { EmptyView() }
+            CardHeader(title: "Tone", caption: "Plain-language controls. Each one moves a band in the equalizer.")
             ForEach(ToneControl.all) { ToneRow(control: $0) }
             Spacer().frame(height: 8)
         }
