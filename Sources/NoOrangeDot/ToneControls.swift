@@ -68,10 +68,11 @@ struct ToneCard: View {
 
     var body: some View {
         Card {
-            CardHeader(title: "Tone", caption: "Plain-language controls. Each one moves a band in the equalizer.")
+            CardHeader(title: "Tone")
             ForEach(ToneControl.all) { ToneRow(control: $0) }
-            Spacer().frame(height: 8)
+            Spacer().frame(height: 10)
         }
+        .help("Each control moves a band in the equalizer.")
         .opacity(engine.bypass || engine.original ? 0.45 : 1)
     }
 }
@@ -84,15 +85,15 @@ private struct ToneRow: View {
         let value = control.value(in: engine.bands)
         let full = control.index(in: engine.bands) == nil && engine.bands.count >= DSPChain.maxBands
         HStack(spacing: 10) {
-            Text(control.title).font(.system(size: 13)).frame(width: 60, alignment: .leading)
-            Text(control.less).font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 58, alignment: .trailing)
+            Text(control.title).font(.system(size: 15)).frame(width: 70, alignment: .leading)
+            Text(control.less).font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 62, alignment: .trailing)
             Slider(value: Binding(get: { value }, set: { if let bands = control.setting($0, in: engine.bands) { engine.bands = bands } }), in: control.range)
                 .accessibilityLabel("\(control.title), \(control.less) to \(control.more)")
                 .accessibilityValue(control.label(value))
-            Text(control.more).font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 58, alignment: .leading)
-            Text(control.label(value)).font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary).frame(width: 58, alignment: .trailing)
+            Text(control.more).font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 62, alignment: .leading)
+            Text(control.label(value)).font(.system(size: 14).monospacedDigit()).frame(width: 64, alignment: .trailing)
         }
-        .padding(.horizontal, 14).padding(.vertical, 4)
+        .padding(.horizontal, 16).padding(.vertical, 6)
         .disabled(full)
         .help(full ? "The EQ already has \(DSPChain.maxBands) bands. Remove one to use \(control.title)." : "")
     }

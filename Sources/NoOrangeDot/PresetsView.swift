@@ -10,7 +10,7 @@ struct PresetsCard: View {
     var body: some View {
         let current = engine.currentPreset
         Card {
-            CardHeader(title: "Presets", caption: caption(current)) {
+            CardHeader(title: "Presets", caption: engine.presets.isEmpty ? "Save the current sound to come back to it." : nil) {
                 HStack(spacing: 2) {
                     IconButton(symbol: "plus", label: "Save the current sound as a preset") { name = current?.name ?? suggestedName; naming = true }
                     if !engine.presets.isEmpty { manage(current) }
@@ -19,7 +19,7 @@ struct PresetsCard: View {
             ForEach(Array(engine.presets.enumerated()), id: \.element.id) { i, preset in
                 row(i, preset, isCurrent: preset.id == current?.id)
             }
-            Spacer().frame(height: engine.presets.isEmpty ? 0 : 6)
+            Spacer().frame(height: engine.presets.isEmpty ? 0 : 8)
         }
         .help("Loop a recording in the player, then click presets to hear each on the same words.")
         .alert("Save this sound as a preset", isPresented: $naming) {
@@ -32,39 +32,33 @@ struct PresetsCard: View {
         }
     }
 
-    private func caption(_ current: SoundPreset?) -> String {
-        if engine.presets.isEmpty { return "Save the current sound to come back to it." }
-        if let current { return "Using \(current.name)" }
-        if let last = engine.presets.first(where: { $0.id == engine.lastPreset }) { return "Changed since \(last.name)" }
-        return "Not saved as a preset"
-    }
-
     private var suggestedName: String {
         var n = engine.presets.count + 1
         while engine.presets.contains(where: { $0.name == "Preset \(n)" }) { n += 1 }
         return "Preset \(n)"
     }
 
+    private func shortcut(_ i: Int) -> String? { i < 9 ? Shortcut(engine.shortcut(for: "preset-\(i + 1)"))?.display : nil }
+
+    /// The preset in use is lit. The last one used, changed since, says Edited.
     private func row(_ i: Int, _ preset: SoundPreset, isCurrent: Bool) -> some View {
-        Button { engine.use(preset) } label: {
+        let edited = engine.currentPreset == nil && preset.id == engine.lastPreset
+        return Button { engine.use(preset) } label: {
             HStack(spacing: 10) {
-                Text(i < 9 ? "\(i + 1)" : "").font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(isCurrent ? Color.white : Color.secondary)
-                    .frame(width: 20, height: 20)
-                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(isCurrent ? Color.accentColor : Color.primary.opacity(0.07)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(preset.name).font(.system(size: 13, weight: isCurrent ? .semibold : .regular)).lineLimit(1)
-                    Text(preset.summary).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                }
+                Text(preset.name).font(.system(size: 15, weight: isCurrent ? .semibold : .regular)).lineLimit(1)
+                    .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
+                if edited { Text("Edited").font(.system(size: 12)).foregroundStyle(.secondary) }
                 Spacer(minLength: 4)
+                if let key = shortcut(i) { Text(key).font(.system(size: 12)).foregroundStyle(.tertiary) }
             }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isCurrent ? Color.accentColor.opacity(0.12) : .clear))
+            .padding(.horizontal, 10).frame(height: 36)
+            .background(RoundedRectangle(cornerRadius: Surface.radius - 6, style: .continuous).fill(isCurrent ? Color.accentColor.opacity(0.14) : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 6)
-        .accessibilityLabel("Use preset \(preset.name)").accessibilityValue(preset.summary)
+        .help(preset.summary)
+        .accessibilityLabel("Use preset \(preset.name)").accessibilityValue(edited ? "Edited. \(preset.summary)" : preset.summary)
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 
@@ -79,7 +73,7 @@ struct PresetsCard: View {
                 ForEach(engine.presets) { p in Button(p.name) { engine.deletePreset(p) } }
             }
         } label: {
-            Image(systemName: "ellipsis.circle").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34).contentShape(Rectangle())
+            Image(systemName: "ellipsis.circle").font(.system(size: 16, weight: .medium)).frame(width: 36, height: 36).contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .help("Replace or delete presets").accessibilityLabel("Manage presets")

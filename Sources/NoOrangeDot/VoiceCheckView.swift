@@ -15,27 +15,25 @@ struct VoiceCheckCard: View {
         default: return "Play Reference"
         }
     }
-    private var pick: Recording? { engine.recordings.first { $0.url == engine.auditioning } }
     private var playing: Bool { engine.auditioning != nil }
 
     private var noMicrophone: Bool { !engine.driverInstalled || engine.inputUID.isEmpty }
 
-    /// What the meter is measuring, and what to do when it is measuring nothing.
-    private var source: (title: String, detail: String) {
+    /// What the meter is measuring, and a line of help only when something needs doing.
+    private var source: (title: String, detail: String?) {
         switch reference.state {
-        case .preparing: return ("Preparing the reference voice…", "It plays at a fixed level.")
-        case .playing: return ("Reference voice", "Speak at about this level, at the same listening volume.")
+        case .preparing: return ("Preparing the reference…", nil)
+        case .playing: return ("Reference voice", "Match this level when you speak.")
         default: break
         }
-        if playing { return ("Your recording", pick?.raw != nil ? "Playing through your current sound." : "Playing as saved. Output changes apply to your next recording.") }
-        if noMicrophone { return ("No microphone available", "Choose a microphone in the sidebar.") }
-        if engine.muted { return ("Mic muted", "Unmute to see your level.") }
-        if engine.checkingVoice, engine.running { return ("Mic open for voice check", "Speak from your usual distance. Nothing is played back.") }
-        if engine.running { return ("Mic open", "Measured after EQ and dynamics.") }
+        if playing { return ("Your recording", nil) }
+        if noMicrophone { return ("No microphone", "Choose one in the sidebar.") }
+        if engine.muted { return ("Mic muted", nil) }
+        if engine.running { return (engine.checkingVoice ? "Checking your voice" : "Mic open", nil) }
         if let app = engine.directUsers.first, let mic = engine.inputs.first(where: { $0.uid == engine.inputUID })?.name {
-            return ("\(app) is reading \(mic) directly", "So \(app) hears it without your sound, and nothing shows here. Choose \(engine.micDisplayName) as the microphone in \(app), or start Check My Voice.")
+            return ("\(app) is reading \(mic) directly", "Choose \(engine.micDisplayName) in \(app) to hear your sound and see its level here.")
         }
-        return ("Mic off — start Check My Voice to see your level.", "The mic stays closed until something uses it.")
+        return ("Mic off", nil)
     }
 
     var body: some View {
@@ -44,11 +42,10 @@ struct VoiceCheckCard: View {
             Live(engine.meters) { meters in
                 let reading = playing ? meters.playbackVoice : meters.voice
                 let active = playing || (engine.running && !engine.muted)
-                VoiceLevelDisplay(reading: reading, active: active, label: source.title,
-                                  detail: active && !referenceActive ? source.title + " · " + source.detail : source.detail,
+                VoiceLevelDisplay(reading: reading, active: active, label: source.title, detail: source.detail,
                                   suppressed: referenceActive || (!playing && engine.muted))
             }
-            .padding(.horizontal, 14).padding(.bottom, 12)
+            .padding(.horizontal, 16).padding(.bottom, 14)
             HStack(spacing: 8) {
                 Button {
                     reference.stop()
@@ -56,10 +53,11 @@ struct VoiceCheckCard: View {
                     engine.checkingVoice.toggle()
                 } label: {
                     Label(engine.checkingVoice ? "Stop Check" : "Check My Voice", systemImage: engine.checkingVoice ? "stop.fill" : "mic")
-                        .frame(maxWidth: .infinity)
+                        .lineLimit(1).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PillButtonStyle(prominent: !engine.running && !engine.checkingVoice && !playing))
                 .disabled((engine.muted || noMicrophone) && !engine.checkingVoice)
+                .help("Opens the mic to show your level. Nothing is played back.")
                 Button {
                     if referenceActive { reference.stop() }
                     else {
@@ -73,22 +71,19 @@ struct VoiceCheckCard: View {
                 }
                 .buttonStyle(PillButtonStyle())
                 .disabled(engine.recording || engine.listenBack)
-                .help("Play a spoken sample at a fixed level. Compare at the same headphone or speaker volume.")
+                .help(engine.recording ? "Stop recording to play the reference."
+                      : engine.listenBack ? "Turn off Hear myself to play the reference."
+                      : "Play a spoken sample at a fixed level. Compare at the same listening volume.")
             }
-            .padding(.horizontal, 14).padding(.bottom, 12)
+            .padding(.horizontal, 16).padding(.bottom, 14)
             RowDivider()
             SliderRow(label: "Output", value: String(format: "%+.1f dB", engine.outputGainDB), binding: $engine.outputGainDB, range: -12...12)
                 .padding(.vertical, 6)
                 .help("Applied after the EQ and dynamics. Your listening volume stays up to you.")
-            if engine.recording || engine.listenBack {
-                Text(engine.recording ? "Stop recording before playing the reference." : "Turn off Hear myself to compare with the reference on its own.")
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
-            }
             if case .failed(let message) = reference.state {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.system(size: 13)).foregroundStyle(.orange)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 12)
             }
         }
         .onAppear { engine.refreshRecordings() }
@@ -123,17 +118,17 @@ struct VoiceLevelDisplay: View {
     private func fraction(_ db: Double) -> Double { min(max((db + 60) / 60, 0), 1) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(verdict).font(.system(size: 14, weight: .medium)).foregroundStyle(tint)
+                Text(verdict).font(.system(size: 16, weight: .semibold)).foregroundStyle(tint)
                 Spacer(minLength: 8)
                 if hasSignal {
-                    Text(String(format: "%.0f avg · %.0f peak dBFS", reading.averageDB, reading.peakDB))
-                        .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary)
+                    Text(String(format: "%.0f avg · %.0f peak", reading.averageDB, reading.peakDB))
+                        .font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
             if let detail {
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(detail).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             GeometryReader { g in
                 ZStack(alignment: .leading) {
@@ -143,26 +138,18 @@ struct VoiceLevelDisplay: View {
                         .offset(x: g.size.width * fraction(-24))
                     if hasSignal {
                         Capsule().fill(tint.opacity(0.8)).frame(width: g.size.width * fraction(reading.averageDB))
-                        Rectangle().fill(Color.primary).frame(width: 2, height: 16)
+                        Rectangle().fill(Color.primary).frame(width: 2, height: 18)
                             .offset(x: min(g.size.width - 2, g.size.width * fraction(reading.peakDB)))
                     }
-                    Rectangle().fill(Color.primary.opacity(0.7)).frame(width: 1, height: 18)
+                    Rectangle().fill(Color.primary.opacity(0.7)).frame(width: 1, height: 20)
                         .offset(x: g.size.width * fraction(VoiceLevel.referenceDB))
                 }
             }
-            .frame(height: 12).padding(.vertical, 3)
-            HStack {
-                Text("Quiet")
-                Spacer()
-                Text("Loud")
-            }
-            .font(.system(size: 12)).foregroundStyle(.secondary)
-            Text("Shaded: speaking range, −24 to −16 dBFS. Line: the reference voice, −20.")
-                .font(.system(size: 11)).foregroundStyle(.tertiary)
+            .frame(height: 14).padding(.vertical, 3)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Voice level. \(label)")
         .accessibilityValue(hasSignal ? "\(verdict). Average \(Int(reading.averageDB)) dBFS. Peak \(Int(reading.peakDB)) dBFS." : verdict)
-        .help("Average signal level over about 400 milliseconds, in dBFS. The mark is the reference voice level. The thin moving line shows peaks; 0 dBFS is the digital limit.")
+        .help("Average level over about 400 ms, in dBFS. The shaded band is the speaking range, −24 to −16. The fixed line is the reference voice, −20. The moving line shows peaks; 0 is the digital limit.")
     }
 }

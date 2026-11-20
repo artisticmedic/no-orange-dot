@@ -1,40 +1,64 @@
 import SwiftUI
 
-/// Replaces the Record button while a take is running: the time so far, pause, mute and stop.
-struct RecordingControls: View {
+/// Record, in the sidebar under Hear myself. While a take runs it turns into Stop, with the time so far, and Pause.
+struct RecordKey: View {
     @EnvironmentObject var engine: Engine
-    @State private var stopHover = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        HStack(spacing: 2) {
-            HStack(spacing: 7) {
-                Circle().fill(engine.recordingPaused ? Color.secondary : Color.red).frame(width: 8, height: 8)
-                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-                    Text(Recording.clock(engine.recordingElapsed)).font(.system(size: 13, weight: .semibold).monospacedDigit())
+        if engine.recording {
+            HStack(spacing: 8) {
+                Button { engine.stopRecording() } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "stop.fill")
+                        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                            Text(Recording.clock(engine.recordingElapsed)).monospacedDigit()
+                        }
+                        if engine.recordingPaused { Text("Paused").opacity(0.75) }
+                    }
                 }
-                if engine.recordingPaused { Text("Paused").font(.system(size: 13)).foregroundStyle(.secondary) }
-                if engine.listenBack { Text("· Hear myself on").font(.system(size: 13)).foregroundStyle(.secondary) }
+                .buttonStyle(KeyButtonStyle(palette: .red, latched: true, height: 40))
+                .help("Stop recording and save it")
+                .accessibilityLabel(engine.recordingPaused ? "Recording paused. Stop and save" : "Recording. Stop and save")
+                Button { engine.togglePause() } label: {
+                    Image(systemName: engine.recordingPaused ? "record.circle" : "pause.fill")
+                }
+                .buttonStyle(KeyButtonStyle(palette: .graphite(scheme), latched: engine.recordingPaused, height: 40))
+                .frame(width: 58)
+                .help(engine.recordingPaused ? "Resume recording" : "Pause recording")
+                .accessibilityLabel(engine.recordingPaused ? "Resume recording" : "Pause recording")
             }
-            .padding(.leading, 10).padding(.trailing, 4)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel((engine.recordingPaused ? "Recording paused" : "Recording") + (engine.listenBack ? ", hearing yourself" : ""))
-            BarIcon(symbol: engine.recordingPaused ? "record.circle" : "pause.fill",
-                    label: engine.recordingPaused ? "Resume recording" : "Pause recording") { engine.togglePause() }
-            BarIcon(symbol: engine.muted ? "mic.slash.fill" : "mic.fill", label: engine.muted ? "Unmute" : "Mute",
-                    tint: engine.muted ? .orange : .primary) { engine.muted.toggle() }
-            Button { engine.stopRecording() } label: {
-                Label("Stop", systemImage: "stop.fill")
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.red)
-                    .padding(.horizontal, 12).frame(height: 26)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.red.opacity(stopHover ? 0.24 : 0.14)))
-                    .contentShape(Rectangle())
+        } else {
+            Button { engine.toggleRecording() } label: {
+                HStack(spacing: 9) {
+                    Circle().fill(Color.red).frame(width: 11, height: 11)
+                    Text("Record")
+                }
             }
-            .buttonStyle(.plain).onHover { stopHover = $0 }
-            .accessibilityLabel("Stop recording and save it")
+            .buttonStyle(KeyButtonStyle(palette: .graphite(scheme), height: 40))
+            .help("Record a take through your current sound")
         }
-        .padding(2).frame(minHeight: 30)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.red.opacity(0.07)))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.red.opacity(0.30), lineWidth: 1))
+    }
+}
+
+/// Hear your own voice, with your sound, in your headphones. Lit while on.
+struct HearMyselfKey: View {
+    @EnvironmentObject var engine: Engine
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Button {
+            if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }
+            engine.listenBack.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "headphones")
+                Text("Hear myself")
+            }
+        }
+        .buttonStyle(KeyButtonStyle(palette: engine.listenBack ? .blue : .graphite(scheme), latched: engine.listenBack, height: 40))
+        .help(engine.listenBack ? "Stop hearing yourself" : "Hear your voice, with your sound, in your headphones")
+        .accessibilityAddTraits(engine.listenBack ? .isSelected : [])
     }
 }
 

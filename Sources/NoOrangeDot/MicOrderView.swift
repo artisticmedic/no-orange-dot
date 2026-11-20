@@ -5,28 +5,25 @@ struct MicOrderCard: View {
 
     var body: some View {
         Card {
-            Row(title: "Choose your preferred microphones",
-                caption: "Include the mics you want, then put your favourite first. New microphones stay out of the list until you include them.") { EmptyView() }
             if engine.micOrder.isEmpty {
-                RowDivider()
-                Row(title: "No microphones included", caption: "The app uses an available microphone. Include your favourites below to choose which ones take priority.") { EmptyView() }
+                Row(title: "No microphones included", caption: "Include one below to give it priority.") { EmptyView() }
             }
             ForEach(Array(engine.micOrder.enumerated()), id: \.element) { i, uid in
-                RowDivider()
+                if i > 0 { RowDivider() }
                 micRow(uid, position: i)
             }
             if !engine.otherMicUIDs.isEmpty {
-                RowDivider()
-                Row(title: "Other microphones", caption: "Used as a fallback when none of your included mics are connected. Turn on Include to give one a place in the list.") { EmptyView() }
-                ForEach(engine.otherMicUIDs, id: \.self) { uid in
-                    RowDivider()
+                Text("Other microphones, used only when none above are connected")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 4)
+                ForEach(Array(engine.otherMicUIDs.enumerated()), id: \.element) { i, uid in
+                    if i > 0 { RowDivider() }
                     micRow(uid, position: nil)
                 }
             }
-            RowDivider()
-            Row(title: "When none are connected",
-                caption: "The app keeps the current microphone if it is available, or picks another. It returns to your priority list when an included mic reconnects.") { EmptyView() }
         }
+        .help("The first connected microphone in the list is used. New microphones stay out of the list until you include them. When none are connected, the app keeps the current one or picks another, and returns to the list when an included one reconnects.")
     }
 
     private func micRow(_ uid: String, position: Int?) -> some View {
@@ -46,8 +43,10 @@ struct MicOrderCard: View {
         }
     }
 
-    private func caption(_ uid: String) -> String {
+    /// Other microphones are always connected, so only the one in use says anything.
+    private func caption(_ uid: String) -> String? {
         if uid == engine.inputUID { return engine.manualInputUID == uid ? "In use · selected manually" : "In use" }
+        guard engine.micOrder.contains(uid) else { return nil }
         return engine.inputs.contains { $0.uid == uid } ? "Connected" : "Not plugged in"
     }
 

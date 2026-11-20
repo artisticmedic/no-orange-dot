@@ -7,17 +7,15 @@ struct EQView: View {
     private let fMin = 20.0, fMax = 20000.0, dbRange = 18.0
 
     @AppStorage(Engine.heatMapKey) private var heatMap = true
-    @State private var showEmptyHistory = false
     private var live: Bool { engine.monitoring || engine.auditioning != nil }
 
     var body: some View {
         Card {
-            CardHeader(title: "Equalizer", caption: engine.original ? "Processing is off: you're hearing the mic as it is." : readout ?? "Drag a dot to adjust a band.") {
-                HStack(spacing: 6) {
+            CardHeader(title: "Equalizer", caption: engine.original ? "Processing is off." : readout) {
+                HStack(spacing: 4) {
                     IconButton(symbol: "arrow.uturn.backward", label: "Undo the last change to the curve") { engine.undoEQ() }
                         .disabled(!engine.canUndoEQ).opacity(engine.canUndoEQ ? 1 : 0.35)
-                    history
-                    startMenu
+                    curves
                     IconButton(symbol: "plus", label: "Add a band") { addBand() }
                         .disabled(engine.bands.count >= DSPChain.maxBands).opacity(engine.bands.count >= DSPChain.maxBands ? 0.35 : 1)
                     Toggle("Equalizer", isOn: Binding(get: { !engine.bypass }, set: { engine.bypass = !$0 })).labelsHidden().toggleStyle(.switch)
@@ -26,6 +24,7 @@ struct EQView: View {
                 }
             }
             graph.frame(height: graphHeight).padding(.horizontal, 10).opacity(engine.bypass || engine.original ? 0.45 : 1)
+                .help("Drag a dot to move a band. Click one to edit it below.")
             viewOptions
             if heatMap, live {
                 SpectrogramView().frame(height: 110).padding(.horizontal, 10).padding(.bottom, 10)
@@ -40,54 +39,43 @@ struct EQView: View {
     /// What draws on the graph, in one line under it.
     private var viewOptions: some View {
         HStack(spacing: 16) {
-            Toggle("See your voice", isOn: $engine.monitoring).toggleStyle(.switch).controlSize(.small)
+            Toggle("See your voice", isOn: $engine.monitoring).toggleStyle(.switch)
                 .help(engine.monitoring ? "The mic is open while this is on." : "Shows your live voice behind the curve. Opens the mic.")
-            Toggle("Heat map", isOn: $heatMap).toggleStyle(.switch).controlSize(.small)
+            Toggle("Heat map", isOn: $heatMap).toggleStyle(.switch)
                 .help("Your voice over time: pitch runs bottom to top, brighter is louder.")
             Spacer()
             if live {
-                legend(.accentColor, "The EQ is adding")
-                legend(.orange, "The EQ is taking away")
+                legend(.accentColor, "Added")
+                legend(.orange, "Cut")
             }
         }
-        .font(.system(size: 13))
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .font(.system(size: 14))
+        .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
-    private var startMenu: some View {
+    /// Starting curves and earlier curves, in one menu.
+    private var curves: some View {
         Menu {
-            Button("Warm voice") { engine.bands = Presets.warm }
-            Button("Flat") { engine.bands = Presets.flat }
+            Section("Start From") {
+                Button("Warm voice") { engine.bands = Presets.warm }
+                Button("Flat") { engine.bands = Presets.flat }
+            }
+            Section("Earlier Curves") {
+                if engine.history.isEmpty {
+                    Text("Change the EQ and the curve from before is kept here.")
+                } else {
+                    ForEach(engine.history) { s in
+                        Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s) }
+                    }
+                    Divider()
+                    Button("Clear History") { engine.clearHistory() }
+                }
+            }
         } label: {
-            Image(systemName: "square.on.square").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34).contentShape(Rectangle())
+            Image(systemName: "clock.arrow.circlepath").font(.system(size: 16, weight: .medium)).frame(width: 36, height: 36).contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-        .help("Start from a curve: \(presetName)").accessibilityLabel("EQ starting point, \(presetName)")
-    }
-
-    @ViewBuilder private var history: some View {
-        if engine.history.isEmpty {
-            IconButton(symbol: "clock.arrow.circlepath", label: "Earlier curves") { showEmptyHistory = true }
-                .popover(isPresented: $showEmptyHistory, arrowEdge: .bottom) {
-                    VStack(spacing: 8) {
-                        ArtworkView(art: .emptyHistory, tint: Artwork.tint(engine.appIcon), surface: .clear)
-                        Text("No earlier curves yet").font(.system(size: 13, weight: .medium))
-                        Text("Change the EQ and the curve from before is kept here.")
-                            .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    }
-                    .padding(16).frame(width: 220)
-                }
-        } else {
-            Menu {
-                ForEach(engine.history) { s in
-                    Button("\(s.date.formatted(date: .abbreviated, time: .shortened))  ·  \(s.summary)") { engine.restore(s) }
-                }
-                Divider()
-                Button("Clear History") { engine.clearHistory() }
-            } label: { Image(systemName: "clock.arrow.circlepath").font(.system(size: 15, weight: .medium)).frame(width: 34, height: 34).contentShape(Rectangle()) }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-            .help("Earlier curves").accessibilityLabel("Earlier curves")
-        }
+        .help("Start from a curve, or go back to an earlier one").accessibilityLabel("Curves")
     }
 
     /// "Bell · 480 Hz · −3.0 dB · Q 0.50" for the band being dragged or edited.
@@ -97,16 +85,10 @@ struct EQView: View {
         return [b.type.label, f, b.type.hasGain ? String(format: "%+.1f dB", b.gainDB) : nil, String(format: "Q %.2f", b.q)].compactMap { $0 }.joined(separator: "  ·  ")
     }
 
-    private var presetName: String {
-        if engine.bands == Presets.warm { return "Warm voice" }
-        if engine.bands == Presets.flat { return "Flat" }
-        return "Custom"
-    }
-
     private func legend(_ color: Color, _ text: String) -> some View {
         HStack(spacing: 6) {
             RoundedRectangle(cornerRadius: 3).fill(color.opacity(0.45)).frame(width: 14, height: 10)
-            Text(text).font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(text).font(.system(size: 13)).foregroundStyle(.secondary)
         }
     }
 
@@ -119,13 +101,13 @@ struct EQView: View {
         GeometryReader { g in
             let w = g.size.width, h = g.size.height
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Surface.plot)
-                RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Surface.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Surface.radius - 10, style: .continuous).fill(Surface.plot)
+                RoundedRectangle(cornerRadius: Surface.radius - 10, style: .continuous).strokeBorder(Surface.border, lineWidth: 1)
                 Live(engine.scope) { m in Canvas { ctx, size in
                     for f in [50.0, 100, 200, 500, 1000, 2000, 5000, 10000] {
                         var p = Path(); p.move(to: CGPoint(x: x(f, w), y: 0)); p.addLine(to: CGPoint(x: x(f, w), y: h))
                         ctx.stroke(p, with: .color(.primary.opacity(0.08)), lineWidth: 1)
-                        ctx.draw(Text(f >= 1000 ? "\(Int(f / 1000))k" : "\(Int(f))").font(.system(size: 12)).foregroundStyle(.secondary), at: CGPoint(x: x(f, w) + 4, y: h - 10), anchor: .leading)
+                        ctx.draw(Text(f >= 1000 ? "\(Int(f / 1000))k" : "\(Int(f))").font(.system(size: 12)).foregroundStyle(.secondary), at: CGPoint(x: x(f, w) + 4, y: h - 11), anchor: .leading)
                     }
                     for db in [-12.0, -6, 0, 6, 12] {
                         var p = Path(); p.move(to: CGPoint(x: 0, y: y(db, h))); p.addLine(to: CGPoint(x: w, y: y(db, h)))
@@ -193,7 +175,7 @@ struct EQView: View {
                 }
             }
             .coordinateSpace(name: "eq")
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Surface.radius - 10, style: .continuous))
         }
     }
 

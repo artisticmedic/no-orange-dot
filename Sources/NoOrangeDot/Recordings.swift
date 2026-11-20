@@ -89,59 +89,94 @@ struct RecordingsView: View {
     @EnvironmentObject var engine: Engine
 
     var body: some View {
-        Card {
-            CardHeader(title: engine.recordings.isEmpty ? "Recordings" : "Recordings (\(engine.recordings.count))",
-                       caption: "Saved in \((engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath). Choose one to open it in the player below.") {
-                HStack(spacing: 8) {
-                    Button("Open Folder") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
-                    if !engine.recordings.isEmpty {
-                        Button("Delete All…") { clear() }.buttonStyle(PillButtonStyle())
+        VStack(alignment: .leading, spacing: 12) {
+            HStack { RecordingsFolderMenu(); Spacer() }
+            Card {
+                if engine.recordings.isEmpty {
+                    HStack(spacing: 4) {
+                        ArtworkView(art: .emptyRecordings, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
+                        Row(title: "Nothing here yet", caption: "Press Record and say a few sentences.") { EmptyView() }
                     }
-                }
-            }
-            if engine.recordings.isEmpty {
-                RowDivider()
-                HStack(spacing: 4) {
-                    ArtworkView(art: .emptyRecordings, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
-                    Row(title: "Nothing here yet", caption: "Press Record and say a few sentences.") { EmptyView() }
-                }
-            } else {
-                ForEach(engine.recordings) { r in
-                    RowDivider()
-                    row(r)
+                } else {
+                    ForEach(Self.days(engine.recordings), id: \.title) { day in
+                        Text(day.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 4)
+                        ForEach(Array(day.takes.enumerated()), id: \.element.id) { i, r in
+                            if i > 0 { Divider().padding(.leading, 62) }
+                            RecordingRow(take: r)
+                        }
+                    }
+                    Spacer().frame(height: 6)
                 }
             }
         }
         .onAppear { engine.refreshRecordings() }
     }
 
-    private func row(_ r: Recording) -> some View {
-        let selected = engine.playerRecording?.url == r.url
-        let loaded = engine.auditioning == r.url
-        let playing = loaded && !engine.playerPaused
-        return HStack(spacing: 0) {
-            Button { engine.choosePlayerTake(r) } label: {
-                HStack(spacing: 4) {
-                    ArtworkView(art: .take, tint: Artwork.tint(engine.appIcon)).padding(.leading, 14)
-                    Row(title: Recording.friendly(r.date),
-                        caption: "\(Recording.clock(r.seconds))  ·  \(r.url.lastPathComponent)  ·  \(r.raw != nil ? "plays through your current sound" : "plays as saved")") { EmptyView() }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open \(Recording.friendly(r.date)) in the player").accessibilityAddTraits(selected ? .isSelected : [])
-            HStack(spacing: 2) {
-                IconButton(symbol: playing ? "pause.fill" : "play.fill", label: playing ? "Pause" : "Play") {
-                    if loaded { engine.playerPaused.toggle() } else { engine.play(r) }
-                }
-                .disabled(engine.recording)
-                IconButton(symbol: "folder", label: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([r.url]) }
-                IconButton(symbol: "trash", label: "Move to Trash") { engine.trash([r]) }
-            }
-            .padding(.trailing, 8)
+    /// Takes under a heading for each day, newest first: "Today", "Yesterday", "Tuesday, Nov 17".
+    static func days(_ takes: [Recording]) -> [(title: String, takes: [Recording])] {
+        var out: [(title: String, takes: [Recording])] = []
+        for take in takes {
+            let title = day(take.date)
+            if out.last?.title == title { out[out.count - 1].takes.append(take) } else { out.append((title, [take])) }
         }
-        .background(selected ? Color.primary.opacity(0.05) : .clear)
+        return out
     }
+
+    static func day(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Today" }
+        if cal.isDateInYesterday(date) { return "Yesterday" }
+        let sameYear = cal.component(.year, from: date) == cal.component(.year, from: Date())
+        return sameYear ? date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+                        : date.formatted(.dateTime.month(.abbreviated).day().year())
+    }
+}
+
+/// Which folder the list shows and new takes go to: the default, recent ones, or another.
+struct RecordingsFolderMenu: View {
+    @EnvironmentObject var engine: Engine
+
+    var body: some View {
+        let current = engine.recordingsFolder
+        let others = engine.recentRecordingFolders.filter { $0 != current }
+        Menu {
+            Button { engine.useRecordingsFolder("") } label: { check(current.isEmpty, "No Orange Dot (Default)") }
+            if !current.isEmpty { Button {} label: { check(true, Self.name(current)) } }
+            ForEach(others, id: \.self) { path in
+                Button { engine.useRecordingsFolder(path) } label: { check(false, Self.name(path)) }
+            }
+            Divider()
+            Button("Choose Folder…") { engine.chooseRecordingsFolder() }
+            Button("Show in Finder") { NSWorkspace.shared.open(engine.recordingsURL) }
+            if !others.isEmpty {
+                Menu("Remove from List") {
+                    ForEach(others, id: \.self) { path in Button(Self.name(path)) { engine.forgetRecordingsFolder(path) } }
+                }
+            }
+            Divider()
+            Button("Move All to Trash…", role: .destructive) { clear() }.disabled(engine.recordings.isEmpty)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "folder.fill").foregroundStyle(.secondary)
+                Text(engine.recordingsURL.lastPathComponent).font(.system(size: 15, weight: .semibold))
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12).frame(height: 36)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.07)))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help((engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath)
+        .accessibilityLabel("Recordings folder, \(engine.recordingsURL.lastPathComponent)")
+    }
+
+    @ViewBuilder private func check(_ on: Bool, _ title: String) -> some View {
+        if on { Label(title, systemImage: "checkmark") } else { Text(title) }
+    }
+
+    static func name(_ path: String) -> String { URL(fileURLWithPath: (path as NSString).expandingTildeInPath).lastPathComponent }
 
     private func clear() {
         let alert = NSAlert()
@@ -151,5 +186,61 @@ struct RecordingsView: View {
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { engine.stopPlaying(); engine.trash(engine.recordings) }
+    }
+}
+
+/// One take under its day: play, the time, its length, and Show in Finder and Trash on hover or right-click.
+struct RecordingRow: View {
+    @EnvironmentObject var engine: Engine
+    let take: Recording
+    @State private var hovering = false
+
+    /// A file the app named by its time adds nothing beside the time. A clip or a renamed file shows its name.
+    private var name: String? {
+        let name = take.url.deletingPathExtension().lastPathComponent
+        return name.range(of: #"^\d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.\d{2}$"#, options: .regularExpression) != nil ? nil : name
+    }
+
+    var body: some View {
+        let selected = engine.playerRecording?.url == take.url
+        let loaded = engine.auditioning == take.url
+        let playing = loaded && !engine.playerPaused
+        HStack(spacing: 12) {
+            Button { if loaded { engine.playerPaused.toggle() } else { engine.play(take) } } label: {
+                Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(selected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.07)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain).disabled(engine.recording)
+            .help(playing ? "Pause" : "Play").accessibilityLabel(playing ? "Pause" : "Play \(Recording.friendly(take.date))")
+            Button { engine.choosePlayerTake(take) } label: {
+                HStack(spacing: 10) {
+                    Text(take.date.formatted(date: .omitted, time: .shortened)).font(.system(size: 15, weight: selected ? .semibold : .regular))
+                    if let name { Text(name).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1) }
+                    Spacer(minLength: 8)
+                    Text(Recording.clock(take.seconds)).font(.system(size: 14).monospacedDigit()).foregroundStyle(.secondary)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(Recording.friendly(take.date)) in the player").accessibilityAddTraits(selected ? .isSelected : [])
+            HStack(spacing: 2) {
+                IconButton(symbol: "folder", label: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([take.url]) }
+                IconButton(symbol: "trash", label: "Move to Trash") { engine.trash([take]) }
+            }
+            .opacity(hovering ? 1 : 0)
+        }
+        .padding(.horizontal, 14).frame(height: 50)
+        .background(selected ? Color.accentColor.opacity(0.08) : hovering ? Color.primary.opacity(0.03) : .clear)
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button(playing ? "Pause" : "Play") { if loaded { engine.playerPaused.toggle() } else { engine.play(take) } }.disabled(engine.recording)
+            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([take.url]) }
+            Divider()
+            Button("Move to Trash") { engine.trash([take]) }
+        }
     }
 }

@@ -120,7 +120,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // SwiftUI builds the toolbar and title from the view, so the window looks like any other Mac app's.
             host.sceneBridgingOptions = [.toolbars, .title]
             let w = NSWindow(contentViewController: host)
-            w.title = Brand.short
+            // The page's name. The scene bridge changes it when another page is chosen.
+            w.title = EditorTab.sound.rawValue
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             w.toolbarStyle = .unified
             w.isReleasedWhenClosed = false
@@ -210,15 +211,17 @@ enum Surface {
     static let card = pair(hex(0xFFFFFF), hex(0x2D2F32))
     static let plot = pair(hex(0xFAFAFB), hex(0x232527))
     static let border = pair(hex(0x000000, 0.09), hex(0x3A3C40))
+    /// A card's corner. Things inset 10 points inside a card use `radius - 10`, so the corners run parallel.
+    static let radius: CGFloat = 14
 }
 
 struct Card<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(spacing: 0) { content }
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Surface.card))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Surface.border, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: Surface.radius, style: .continuous).fill(Surface.card))
+            .clipShape(RoundedRectangle(cornerRadius: Surface.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Surface.radius, style: .continuous).strokeBorder(Surface.border, lineWidth: 1))
     }
 }
 
@@ -243,7 +246,7 @@ struct Row<Trailing: View>: View {
             Spacer(minLength: 8)
             trailing
         }
-        .padding(.horizontal, 14).padding(.vertical, 11)
+        .padding(.horizontal, 16).padding(.vertical, 12)
     }
 }
 
@@ -255,13 +258,14 @@ struct CardHeader<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.system(size: 14, weight: .semibold))
-                if let caption { Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                Text(title).font(.system(size: 17, weight: .semibold))
+                if let caption { Text(caption).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
             Spacer(minLength: 8)
             trailing
         }
-        .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 10)
+        .frame(minHeight: 36)
+        .padding(.leading, 16).padding(.trailing, 10).padding(.top, 12).padding(.bottom, 8)
     }
 }
 
@@ -276,7 +280,7 @@ struct SoundPage: View {
         if wide {
             HStack(alignment: .top, spacing: 16) {
                 VStack(spacing: 16) { EQView(graphHeight: 300); ToneCard(); DynamicsView() }
-                VStack(spacing: 16) { VoiceCheckCard(); PresetsCard() }.frame(width: 330)
+                VStack(spacing: 16) { VoiceCheckCard(); PresetsCard() }.frame(width: 360)
             }
         } else {
             VStack(spacing: 16) { EQView(graphHeight: 260); VoiceCheckCard(); ToneCard(); DynamicsView(); PresetsCard() }
@@ -285,7 +289,7 @@ struct SoundPage: View {
 }
 
 struct RowDivider: View {
-    var body: some View { Divider().padding(.leading, 14) }
+    var body: some View { Divider().padding(.leading, 16) }
 }
 
 struct SliderRow: View {
@@ -295,11 +299,11 @@ struct SliderRow: View {
     let range: ClosedRange<Double>
     var body: some View {
         HStack(spacing: 12) {
-            Text(label).font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
+            Text(label).font(.system(size: 14)).frame(width: 80, alignment: .leading)
             Slider(value: $binding, in: range)
-            Text(value).font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary).frame(width: 76, alignment: .trailing)
+            Text(value).font(.system(size: 14).monospacedDigit()).foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
         }
-        .padding(.horizontal, 14).padding(.vertical, 5)
+        .padding(.horizontal, 16).padding(.vertical, 6)
         .accessibilityElement(children: .combine).accessibilityLabel(label).accessibilityValue(value)
     }
 }
@@ -310,9 +314,9 @@ struct ToggleButtonStyle: ButtonStyle {
     var tint: Color
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 14, weight: .medium))
             .foregroundStyle(active ? tint : Color.primary)
-            .padding(.horizontal, 12).frame(minHeight: 30)
+            .padding(.horizontal, 14).frame(minHeight: 34)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(active ? tint.opacity(0.16) : Color.primary.opacity(configuration.isPressed ? 0.12 : 0.06)))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(active ? tint.opacity(0.35) : Color.primary.opacity(0.10), lineWidth: 1))
@@ -326,9 +330,9 @@ struct PillButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 14, weight: .medium))
             .foregroundStyle(prominent ? Color(nsColor: .windowBackgroundColor) : Color.primary)
-            .padding(.horizontal, 13).frame(minHeight: 30)
+            .padding(.horizontal, 14).frame(minHeight: 34)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(prominent ? Color.primary.opacity(configuration.isPressed ? 0.75 : 0.9) : Color.primary.opacity(configuration.isPressed ? 0.16 : 0.09)))
             .opacity(enabled ? 1 : 0.4)
@@ -345,8 +349,8 @@ struct IconButton: View {
     @State private var hovering = false
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 15, weight: .medium)).foregroundStyle(tint)
-                .frame(width: 34, height: 34)
+            Image(systemName: symbol).font(.system(size: 16, weight: .medium)).foregroundStyle(tint)
+                .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(hovering ? 0.10 : 0)))
                 .contentShape(Rectangle())
         }
@@ -369,11 +373,11 @@ struct EditorView: View {
     @State var tab: EditorTab = .sound
     @State private var width: CGFloat = 0
 
-    private var maxWidth: CGFloat { tab == .sound ? 1180 : 760 }
+    private var maxWidth: CGFloat { tab == .sound ? 1180 : tab == .recordings ? 880 : 760 }
 
     var body: some View {
         NavigationSplitView {
-            sidebar.navigationSplitViewColumnWidth(min: 210, ideal: 232, max: 300)
+            sidebar.navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 320)
         } detail: {
             VStack(spacing: 0) {
                 ScrollView {
@@ -388,7 +392,8 @@ struct EditorView: View {
                     PlayerBar().frame(maxWidth: maxWidth + 8).frame(maxWidth: .infinity)
                 }
             }
-            .background(Surface.page)
+            // Under the toolbar too, so the toolbar and the page are one surface.
+            .background(Surface.page.ignoresSafeArea())
             .overlay(alignment: .top) { notice }
             .navigationTitle(tab.rawValue)
             .toolbar { toolbar }
@@ -408,15 +413,21 @@ struct EditorView: View {
         List(selection: Binding(get: { Optional(tab) }, set: { if let t = $0 { tab = t } })) {
             ForEach(EditorTab.allCases) { t in
                 Label(t.rawValue, systemImage: t.symbol)
+                    .font(.system(size: 14))
                     .badge(t == .recordings ? engine.recordings.count : 0)
                     .tag(t)
             }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 12) {
-                if engine.driverInstalled { MuteButton(muted: engine.muted) { engine.muted.toggle() } }
-                status
+            // The live controls, as keys: the things to reach for while talking.
+            VStack(spacing: 8) {
+                if engine.driverInstalled {
+                    HearMyselfKey()
+                    RecordKey()
+                    MuteButton(muted: engine.muted) { engine.muted.toggle() }
+                }
+                status.padding(.top, 4)
             }
             .padding(.horizontal, 12).padding(.bottom, 12)
         }
@@ -427,7 +438,7 @@ struct EditorView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 slot.accessibilityHidden(true)
-                Text(engine.statusTitle).font(.system(size: 13, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.9)
+                Text(engine.statusTitle).font(.system(size: 14, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.9)
                     .help(engine.statusDetail.isEmpty ? engine.statusTitle : "\(engine.statusTitle). \(engine.statusDetail).")
                 Spacer(minLength: 0)
             }
@@ -480,11 +491,11 @@ struct EditorView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "mic").font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 18)
-                Text(engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "Choose a microphone").font(.system(size: 13)).lineLimit(1)
+                Text(engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "Choose a microphone").font(.system(size: 14)).lineLimit(1)
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12).frame(height: 36)
+            .padding(.horizontal, 12).frame(height: 40)
             .contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
@@ -502,26 +513,14 @@ struct EditorView: View {
                         .help("Hear Without Processing is on, for apps using the mic too. Click to turn your sound back on.")
                 }
                 if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
-                Toggle(isOn: Binding(get: { engine.listenBack }, set: { on in
-                    if engine.error?.hasPrefix("Listen back") == true { engine.error = nil }
-                    engine.listenBack = on
-                })) { Label("Hear myself", systemImage: "headphones") }
-                    .toggleStyle(.button).labelStyle(.titleAndIcon)
-                    .help("Hear your own voice, with your sound, in your headphones")
-                if engine.recording {
-                    RecordingControls()
-                } else {
-                    Button { engine.toggleRecording() } label: { Label("Record", systemImage: "record.circle") }
-                        .labelStyle(.titleAndIcon)
-                }
             }
         }
     }
 
     @ViewBuilder private var notice: some View {
         if let notice = engine.notice {
-            Text(notice).font(.system(size: 13, weight: .medium))
-                .padding(.horizontal, 12).padding(.vertical, 6)
+            Text(notice).font(.system(size: 14, weight: .medium))
+                .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Capsule().fill(.regularMaterial))
                 .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
                 .padding(.top, 10)
@@ -563,7 +562,7 @@ struct EditorView: View {
 
     private var recordingsFolder: some View {
         Card {
-            Row(title: (engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath, caption: "New recordings go here.") {
+            Row(title: (engine.recordingsURL.path as NSString).abbreviatingWithTildeInPath) {
                 HStack(spacing: 8) {
                     Button("Open") { NSWorkspace.shared.open(engine.recordingsURL) }.buttonStyle(PillButtonStyle())
                     Button("Change…") { engine.chooseRecordingsFolder() }.buttonStyle(PillButtonStyle())
@@ -591,7 +590,7 @@ struct EditorView: View {
 
     private var app: some View {
         Card {
-            Row(title: "App icon", caption: "The icon in the Dock and Command-Tab while the app is running.") {
+            Row(title: "App icon") {
                 HStack(spacing: 10) {
                     ForEach([("paint", "Paint"), ("carbon", "Carbon")], id: \.0) { id, label in
                         Button { engine.appIcon = id } label: {
@@ -613,7 +612,7 @@ struct EditorView: View {
                 }
             }
             RowDivider()
-            Row(title: "Show in Dock", caption: "Keeps the app in the Dock when this window is closed.") {
+            Row(title: "Show in Dock", caption: "Also while this window is closed.") {
                 Toggle("Show in Dock", isOn: $engine.showInDock).labelsHidden().toggleStyle(.switch)
             }
             RowDivider()
@@ -627,7 +626,7 @@ struct EditorView: View {
         Card {
             MicNameRow()
             RowDivider()
-            Row(title: "Real microphone", caption: "Choose a microphone for now. Its EQ and dynamics stay saved, and your priority list stays unchanged.") {
+            Row(title: "Real microphone", caption: "Each microphone keeps its own sound.") {
                 Menu {
                     ForEach(engine.inputs) { input in
                         Button { engine.chooseInput(input.uid) } label: {
@@ -646,22 +645,21 @@ struct EditorView: View {
             }
             if let g = engine.micGain {
                 RowDivider()
-                Row(title: "Mic gain", caption: "The preamp inside \(engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "the microphone"), set on the hardware itself.") { EmptyView() }
+                Row(title: "Mic gain", caption: "Set on the \(engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "microphone") itself.") { EmptyView() }
                 SliderRow(label: "Gain", value: String(format: "%.1f dB", g.db),
                           binding: Binding(get: { engine.micGain?.db ?? g.db }, set: { engine.setMicGain($0) }), range: g.min...g.max).padding(.bottom, 6)
                 RowDivider()
-                Row(title: "Lock gain", caption: engine.gainLockDB != nil ? String(format: "Held at %.1f dB. Changes from other apps are undone.", engine.gainLockDB ?? g.db)
-                                                                         : "Holds the gain where it is, and puts it back if another app moves it.") {
+                Row(title: "Lock gain", caption: engine.gainLockDB != nil ? String(format: "Held at %.1f dB.", engine.gainLockDB ?? g.db) : "Puts the gain back if another app moves it.") {
                     Toggle("Lock gain", isOn: Binding(get: { engine.gainLockDB != nil }, set: { engine.setGainLock($0) })).labelsHidden().toggleStyle(.switch)
                 }
             }
             RowDivider()
-            Row(title: "Use as the Mac's microphone", caption: "Apps that follow the Mac's sound settings get \(engine.micDisplayName). If AirPods or another device take over as they connect, it switches back.") {
+            Row(title: "Use as the Mac's microphone", caption: "Switches back if AirPods take over.") {
                 Toggle("Use as the Mac's microphone", isOn: Binding(get: { engine.isSystemMicrophone }, set: { engine.setSystemMicrophone($0) })).labelsHidden().toggleStyle(.switch)
             }
             if let ms = engine.lastWakeMs {
                 RowDivider()
-                Row(title: "Last wake-up", caption: "How long the mic took to open the last time an app asked.") {
+                Row(title: "Last wake-up", caption: "How long the mic took to open.") {
                     Text(String(format: "%.0f ms", ms)).font(.system(size: 15).monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
@@ -691,7 +689,7 @@ struct ThresholdMeter: View {
     let note: String
     var body: some View {
         HStack(spacing: 12) {
-            Text("Level").font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
+            Text("Level").font(.system(size: 14)).frame(width: 80, alignment: .leading)
             GeometryReader { g in
                 let frac = min(max((DynamicsView.db(level) + 60) / 60, 0), 1)
                 let mark = min(max((thresholdDB + 60) / 60, 0), 1)
@@ -703,9 +701,9 @@ struct ThresholdMeter: View {
                 .frame(maxHeight: .infinity)
             }
             .frame(height: 14)
-            Text(note).font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary).frame(width: 76, alignment: .trailing)
+            Text(note).font(.system(size: 14).monospacedDigit()).foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
         }
-        .padding(.horizontal, 14).padding(.vertical, 5)
+        .padding(.horizontal, 16).padding(.vertical, 6)
         .accessibilityElement(children: .ignore).accessibilityLabel("Level against the threshold").accessibilityValue(note)
     }
 }
@@ -738,32 +736,32 @@ struct DynamicsView: View {
     }
 
     /// A processor's row: the chevron shows its settings, the switch turns it on. Either works without the other.
-    private func header(_ id: String, _ title: String, _ caption: String, isOn: Binding<Bool>) -> some View {
+    /// `live` says what it is doing right now; what it does in general is in the tooltip.
+    private func header(_ id: String, _ title: String, about: String, live: String? = nil, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 14) {
             Button { withAnimation(.easeOut(duration: 0.18)) { toggleOpen(id) } } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isOpen(id) ? 90 : 0)).frame(width: 12)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.system(size: 15))
-                        Text(caption).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
+                    Text(title).font(.system(size: 15))
                     Spacer(minLength: 8)
+                    if let live { Text(live).font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary) }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .help(about)
             .accessibilityLabel(isOpen(id) ? "Hide \(title) settings" : "Show \(title) settings")
             Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
         }
-        .padding(.horizontal, 14).padding(.vertical, 11)
+        .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
     var body: some View {
         Card {
             CardHeader(title: "Dynamics", caption: engine.original ? "Off while Hear Without Processing is on." : nil)
             RowDivider()
-            header("gate", "Noise gate", "Turns the mic down between phrases.", isOn: $engine.dynamics.gateOn)
+            header("gate", "Noise gate", about: "Turns the mic down between phrases.", isOn: $engine.dynamics.gateOn)
             if isOpen("gate") {
                 Live(engine.meters) { m in
                 ThresholdMeter(level: engine.running ? m.level : 0, thresholdDB: engine.dynamics.gateThresholdDB,
@@ -777,8 +775,8 @@ struct DynamicsView: View {
             }
             RowDivider()
             Live(engine.meters) { m in
-                header("comp", "Compressor", engine.dynamics.compOn && engine.running
-                       ? String(format: "Turning the loud parts down %.1f dB.", m.reductionDB) : "Evens out loud and quiet speech.", isOn: $engine.dynamics.compOn)
+                header("comp", "Compressor", about: "Evens out loud and quiet speech.",
+                       live: engine.dynamics.compOn && engine.running ? String(format: "−%.1f dB", m.reductionDB) : nil, isOn: $engine.dynamics.compOn)
             }
             if isOpen("comp") {
                 Live(engine.meters) { m in
@@ -786,13 +784,13 @@ struct DynamicsView: View {
                                note: !engine.dynamics.compOn ? "Off" : engine.running ? String(format: "−%.1f dB", m.reductionDB) : "Mic closed")
                 }
                 HStack(spacing: 8) {
-                    Text("Start from").font(.system(size: 13)).foregroundStyle(.secondary)
+                    Text("Start from").font(.system(size: 14)).foregroundStyle(.secondary)
                     ForEach(Self.compPresets, id: \.name) { p in
                         Button(p.name) { p.apply(&engine.dynamics) }.buttonStyle(PillButtonStyle())
                     }
                     Spacer()
                 }
-                .padding(.horizontal, 14).padding(.vertical, 4)
+                .padding(.horizontal, 16).padding(.vertical, 4)
                 SliderRow(label: "Starts at", value: String(format: "%.0f dB", engine.dynamics.compThresholdDB), binding: $engine.dynamics.compThresholdDB, range: -50...0)
                 SliderRow(label: "Ratio", value: String(format: "%.1f : 1", engine.dynamics.compRatio), binding: $engine.dynamics.compRatio, range: 1...10)
                 SliderRow(label: "Attack", value: String(format: "%.0f ms", engine.dynamics.compAttackMs), binding: $engine.dynamics.compAttackMs, range: 0.5...50)
@@ -801,8 +799,8 @@ struct DynamicsView: View {
             }
             RowDivider()
             Live(engine.meters) { m in
-                header("deess", "De-esser", engine.dynamics.deessOn && engine.running && m.deessDB > 0.1
-                       ? String(format: "Softened an S by %.1f dB.", m.deessDB) : "Softens sharp S sounds.", isOn: $engine.dynamics.deessOn)
+                header("deess", "De-esser", about: "Softens sharp S sounds.",
+                       live: engine.dynamics.deessOn && engine.running && m.deessDB > 0.1 ? String(format: "−%.1f dB", m.deessDB) : nil, isOn: $engine.dynamics.deessOn)
             }
             if isOpen("deess") {
                 SliderRow(label: "Amount", value: String(format: "Up to %.0f dB", engine.dynamics.deessAmountDB), binding: $engine.dynamics.deessAmountDB, range: 2...12)
@@ -810,8 +808,8 @@ struct DynamicsView: View {
             }
             RowDivider()
             Live(engine.meters) { m in
-                header("limiter", "Limiter", engine.dynamics.limiterOn && engine.running && m.limiterDB > 0.1
-                       ? String(format: "Pulled a peak down %.1f dB.", m.limiterDB) : "Catches loud peaks before they clip.", isOn: $engine.dynamics.limiterOn)
+                header("limiter", "Limiter", about: "Catches loud peaks before they clip.",
+                       live: engine.dynamics.limiterOn && engine.running && m.limiterDB > 0.1 ? String(format: "−%.1f dB", m.limiterDB) : nil, isOn: $engine.dynamics.limiterOn)
             }
             if isOpen("limiter") {
                 SliderRow(label: "Ceiling", value: String(format: "%.1f dB", engine.dynamics.limiterCeilingDB), binding: $engine.dynamics.limiterCeilingDB, range: -12...0).padding(.bottom, 6)
@@ -871,6 +869,31 @@ enum Render {
                 print(url.path)
             }
         }
+        // The whole window, title bar and toolbar included, built the way the app builds it.
+        for dark in [false, true] {
+            for (name, tab) in [("window-sound", EditorTab.sound), ("window-recordings", EditorTab.recordings)] {
+                engine.cueSeconds = 0; engine.selection = nil
+                let host = NSHostingController(rootView: EditorView(tab: tab).environmentObject(engine))
+                host.sceneBridgingOptions = [.toolbars, .title]
+                let w = NSWindow(contentViewController: host)
+                w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+                w.toolbarStyle = .unified
+                w.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                w.setContentSize(NSSize(width: Double(ProcessInfo.processInfo.environment["NOD_RENDER_WIDTH"] ?? "") ?? 980,
+                                        height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700))
+                RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+                guard let frame = w.contentView?.superview else { continue }
+                frame.layoutSubtreeIfNeeded()
+                guard let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { continue }
+                frame.cacheDisplay(in: frame.bounds, to: rep)
+                if let png = rep.representation(using: .png, properties: [:]) {
+                    let url = dir.appendingPathComponent("\(name)-\(dark ? "dark" : "light").png")
+                    try? png.write(to: url)
+                    print(url.path)
+                }
+                w.close()
+            }
+        }
         let cell: CGFloat = 96, states = AppMark.State.allCases, styles = AppMark.Style.allCases
         let sheet = NSImage(size: NSSize(width: 150 + cell * CGFloat(states.count) + 260, height: 40 + cell * CGFloat(styles.count)), flipped: true) { rect in
             NSColor.white.setFill(); rect.fill()
@@ -910,8 +933,7 @@ struct MicNameRow: View {
     @FocusState private var editing: Bool
 
     var body: some View {
-        Row(title: "Name apps see", caption: engine.canRenameMic ? "What this mic is called in Zoom, Meet, other apps and the Mac's sound settings."
-                                                                 : "Renaming needs the newer driver. Run the installer once more.") {
+        Row(title: "Name apps see", caption: engine.canRenameMic ? nil : "Renaming needs the newer driver. Run the installer once more.") {
             HStack(spacing: 8) {
                 TextField(Brand.micName, text: $draft).textFieldStyle(.plain).font(.system(size: 14))
                     .padding(.horizontal, 10).frame(width: 220, height: 32)

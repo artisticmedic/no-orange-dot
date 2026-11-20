@@ -9,48 +9,71 @@ struct PlayerBar: View {
 
     var body: some View {
         if let take = engine.playerRecording {
-            let loaded = engine.auditioning == take.url
-            let playing = loaded && !engine.playerPaused
-            VStack(spacing: 8) {
-                HStack(spacing: 10) {
-                    IconButton(symbol: playing ? "pause.fill" : "play.fill", label: playing ? "Pause" : "Play") { focused = true; engine.togglePlay() }
-                        .disabled(engine.recording)
-                    VStack(alignment: .leading, spacing: 2) {
-                        takeMenu(take)
-                        Text(take.raw != nil ? "Through your current sound" : "As saved")
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
+            VStack(spacing: 10) {
+                // One row when there is room for a useful waveform; the waveform gets its own row when there isn't.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        leading(take)
+                        waveform(take).frame(minWidth: 260)
+                        trailing(take)
                     }
-                    Spacer(minLength: 8)
-                    Live(engine.meters) { _ in
-                        Text("\(Recording.clock(engine.playheadSeconds)) / \(Recording.clock(take.seconds))")
-                            .font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    if take.raw != nil {
-                        Button { engine.original.toggle() } label: { Text("Original") }
-                            .buttonStyle(ToggleButtonStyle(active: engine.original, tint: .orange))
-                            .help("Hear the take without EQ or dynamics. This also turns processing off for apps using the mic, until you turn it back on.")
-                            .accessibilityAddTraits(engine.original ? .isSelected : [])
-                    }
-                    Button { engine.auditionLoop.toggle() } label: { Label("Loop", systemImage: "repeat") }
-                        .buttonStyle(ToggleButtonStyle(active: engine.auditionLoop, tint: .accentColor))
-                        .help(engine.selection == nil ? "Repeat the whole recording" : "Repeat the selection")
-                        .accessibilityAddTraits(engine.auditionLoop ? .isSelected : [])
-                    if loaded {
-                        IconButton(symbol: "stop.fill", label: "Stop") { engine.stopPlaying() }
+                    VStack(spacing: 8) {
+                        HStack(spacing: 12) { leading(take); Spacer(minLength: 8); trailing(take) }
+                        waveform(take)
                     }
                 }
-                WaveformView(duration: take.seconds, peaks: peaks) { focused = true }
-                    .frame(height: 46)
-                selectionRow
+                if engine.selection != nil { selectionRow }
             }
-            .padding(.horizontal, 28).padding(.top, 10).padding(.bottom, 12)
+            .padding(.horizontal, 24).padding(.vertical, 12)
             .focusable()
             .focusEffectDisabled()
             .focused($focused)
             .onKeyPress(phases: .down) { press in key(press) }
             .task(id: take.url) { peaks = await Self.peaks(for: take.raw ?? take.url) }
-            .help("Space plays or pauses. Arrow keys move the playhead a second, or five with Shift. I and O set the selection's ends, L turns looping on or off, Escape clears the selection.")
+            .help("Click the waveform to move the playhead, or drag across it to select a part to loop or save. Space plays or pauses. Arrow keys move a second, or five with Shift. I and O set the selection's ends, L loops, Escape clears.")
         }
+    }
+
+    private func leading(_ take: Recording) -> some View {
+        let playing = engine.auditioning == take.url && !engine.playerPaused
+        return HStack(spacing: 8) {
+            Button { focused = true; engine.togglePlay() } label: {
+                Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 15, weight: .semibold))
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(Color.primary.opacity(0.09)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain).disabled(engine.recording)
+            .help(playing ? "Pause" : "Play").accessibilityLabel(playing ? "Pause" : "Play")
+            takeMenu(take)
+        }
+    }
+
+    private func waveform(_ take: Recording) -> some View {
+        WaveformView(duration: take.seconds, peaks: peaks) { focused = true }.frame(height: 38)
+    }
+
+    private func trailing(_ take: Recording) -> some View {
+        HStack(spacing: 8) {
+            Live(engine.meters) { _ in
+                Text("\(Recording.clock(engine.playheadSeconds)) / \(Recording.clock(take.seconds))")
+                    .font(.system(size: 14).monospacedDigit()).foregroundStyle(.secondary)
+            }
+            if take.raw != nil {
+                Button { engine.original.toggle() } label: { Text("Original") }
+                    .buttonStyle(ToggleButtonStyle(active: engine.original, tint: .orange))
+                    .help("Hear the take without EQ or dynamics. This also turns processing off for apps using the mic, until you turn it back on.")
+                    .accessibilityAddTraits(engine.original ? .isSelected : [])
+            }
+            Button { engine.auditionLoop.toggle() } label: { Label("Loop", systemImage: "repeat") }
+                .buttonStyle(ToggleButtonStyle(active: engine.auditionLoop, tint: .accentColor))
+                .help(engine.selection == nil ? "Repeat the whole recording" : "Repeat the selection")
+                .accessibilityAddTraits(engine.auditionLoop ? .isSelected : [])
+            if engine.auditioning == take.url {
+                IconButton(symbol: "stop.fill", label: "Stop") { engine.stopPlaying() }
+            }
+        }
+        .fixedSize()
     }
 
     private func takeMenu(_ take: Recording) -> some View {
@@ -63,28 +86,26 @@ struct PlayerBar: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Text(Recording.friendly(take.date)).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                Text(Recording.friendly(take.date)).font(.system(size: 15, weight: .medium)).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
             }
             .contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-        .help("Choose a recording").accessibilityLabel("Recording in the player")
+        .help(take.raw != nil ? "Choose a recording. This one plays through your current sound." : "Choose a recording. This one plays as it was saved.")
+        .accessibilityLabel("Recording in the player")
     }
 
     @ViewBuilder private var selectionRow: some View {
         if let s = engine.selection {
             HStack(spacing: 8) {
                 Text("Selection \(Self.time(s.lowerBound)) – \(Self.time(s.upperBound))  ·  \(String(format: "%.1f s", s.upperBound - s.lowerBound))")
-                    .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary)
+                    .font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
                 Button("Save as New Recording") { engine.saveSelection() }.buttonStyle(PillButtonStyle()).disabled(engine.recording)
                     .help("Saves this part as its own recording. The original stays as it is.")
                 Button("Clear") { engine.setSelection(nil) }.buttonStyle(PillButtonStyle())
             }
-        } else {
-            Text("Click to move the playhead. Drag across the waveform to select a part to loop or save.")
-                .font(.system(size: 12)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

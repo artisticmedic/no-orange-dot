@@ -96,7 +96,34 @@ extension Engine {
         panel.directoryURL = recordingsURL
         panel.prompt = "Use This Folder"
         panel.message = "New recordings are saved here, and the list shows what is in it."
-        if panel.runModal() == .OK, let url = panel.url { recordingsFolder = url.path }
+        if panel.runModal() == .OK, let url = panel.url { useRecordingsFolder(url.path) }
+    }
+
+    static let recentFoldersKey = "recentRecordingFolders"
+
+    /// Folders chosen before, newest first, that still exist. The default folder is always offered on its own.
+    var recentRecordingFolders: [String] {
+        (UserDefaults.standard.stringArray(forKey: Self.recentFoldersKey) ?? [])
+            .filter { FileManager.default.fileExists(atPath: ($0 as NSString).expandingTildeInPath) }
+    }
+
+    /// Shows and records into another folder. Empty means the default.
+    func useRecordingsFolder(_ path: String) {
+        if !path.isEmpty {
+            var list = UserDefaults.standard.stringArray(forKey: Self.recentFoldersKey) ?? []
+            list.removeAll { $0 == path }
+            list.insert(path, at: 0)
+            UserDefaults.standard.set(Array(list.prefix(8)), forKey: Self.recentFoldersKey)
+        }
+        recordingsFolder = path
+    }
+
+    /// Takes a folder off the list. Its files stay where they are.
+    func forgetRecordingsFolder(_ path: String) {
+        var list = UserDefaults.standard.stringArray(forKey: Self.recentFoldersKey) ?? []
+        list.removeAll { $0 == path }
+        UserDefaults.standard.set(list, forKey: Self.recentFoldersKey)
+        objectWillChange.send()
     }
 
     func note(_ text: String) {
