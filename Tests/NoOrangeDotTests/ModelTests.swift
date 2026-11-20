@@ -88,6 +88,22 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(again.systemMicrophone, true)
     }
 
+    func testSearchMatchesWordStartsAndRanksTitlesFirst() {
+        let items = [
+            SearchItem(id: "a", title: "Dynamics", place: "Sound", tab: .sound),
+            SearchItem(id: "b", title: "Real microphone", place: "Settings", tab: .settings, keywords: ["input"]),
+            SearchItem(id: "c", title: "Mic gain", place: "Settings", tab: .settings),
+            SearchItem(id: "d", title: "Use as the Mac's microphone", place: "Settings", tab: .settings),
+            SearchItem(id: "e", title: "De-esser", place: "Sound", tab: .sound, keywords: ["sibilance"]),
+        ]
+        XCTAssertEqual(SearchItem.matches("mic", in: items).map(\.id), ["c", "b", "d"])
+        XCTAssertEqual(SearchItem.matches("macs mic", in: items).map(\.id), ["d"])
+        XCTAssertEqual(SearchItem.matches("deess", in: items).map(\.id), ["e"])
+        XCTAssertEqual(SearchItem.matches("sib", in: items).map(\.id), ["e"])
+        XCTAssertEqual(SearchItem.matches("input", in: items).map(\.id), ["b"])
+        XCTAssertEqual(SearchItem.matches("  ", in: items), [])
+    }
+
     func testPlaybackWithASelectionStartsInsideIt() {
         XCTAssertEqual(Engine.startPoint(cue: 3, selection: 1.7...4.4, length: 5), 3)
         XCTAssertEqual(Engine.startPoint(cue: 0.5, selection: 1.7...4.4, length: 5), 1.7)

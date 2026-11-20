@@ -5,6 +5,7 @@ extension Notification.Name {
     static let showTab = Notification.Name("NoOrangeDot.showTab")
     static let focusMicName = Notification.Name("NoOrangeDot.focusMicName")
     static let cliToolChanged = Notification.Name("NoOrangeDot.cliToolChanged")
+    static let focusSearch = Notification.Name("NoOrangeDot.focusSearch")
 }
 
 /// What the menus asked the window to show. A window that is open takes it when the notification
@@ -13,6 +14,7 @@ extension Notification.Name {
 enum EditorRequest {
     static var tab: EditorTab?
     static var focusMicName = false
+    static var focusSearch = false
 }
 
 enum ShortcutRouting {
@@ -163,6 +165,12 @@ final class MainMenu: NSObject, NSMenuDelegate {
             NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
             NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
             NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
+            .separator(),
+            ActionItem("Find…", key: "f") { [weak self] in
+                EditorRequest.focusSearch = true
+                self?.openEditor()
+                NotificationCenter.default.post(name: .focusSearch, object: nil)
+            },
         ])
 
         add("View", [

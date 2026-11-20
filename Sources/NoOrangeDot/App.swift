@@ -274,13 +274,19 @@ struct SoundPage: View {
     var body: some View {
         if wide {
             HStack(alignment: .top, spacing: 16) {
-                VStack(spacing: 16) { EQView(graphHeight: 300); ToneCard(); DynamicsView() }
-                VStack(spacing: 16) { VoiceCheckCard(); PresetsCard() }.frame(width: 360)
+                VStack(spacing: 16) { eq(300); tone; dynamics }
+                VStack(spacing: 16) { voice; presets }.frame(width: 360)
             }
         } else {
-            VStack(spacing: 16) { EQView(graphHeight: 260); VoiceCheckCard(); ToneCard(); DynamicsView(); PresetsCard() }
+            VStack(spacing: 16) { eq(260); voice; tone; dynamics; presets }
         }
     }
+
+    private func eq(_ height: CGFloat) -> some View { EQView(graphHeight: height).searchAnchor("sound.eq") }
+    private var tone: some View { ToneCard().searchAnchor("sound.tone") }
+    private var dynamics: some View { DynamicsView().searchAnchor("sound.dynamics") }
+    private var voice: some View { VoiceCheckCard().searchAnchor("sound.voice") }
+    private var presets: some View { PresetsCard().searchAnchor("sound.presets") }
 }
 
 struct RowDivider: View {
@@ -367,16 +373,26 @@ struct EditorView: View {
     @ObservedObject private var updater = Updater.shared
     @State var tab: EditorTab = .sound
     @State private var width: CGFloat = 0
+    @State var query = ""
+    @FocusState private var searching: Bool
+    @State private var picked: String?
+    /// The anchor being outlined after a jump.
+    @State private var target: String?
+    @State private var jump: (id: String, token: UUID)?
+    @State private var chrome = WindowChrome()
 
     private var maxWidth: CGFloat { tab == .sound ? 1180 : tab == .recordings ? 880 : 760 }
 
-    /// No toolbar and no title: the page runs to the top of the window, and the sidebar shows the app's name.
+    /// An empty, see-through toolbar with no title. It gives the window buttons the same room as in Mail and
+    /// Messages; the sidebar shows the app's name beside them.
     static func configure(_ w: NSWindow) {
         w.title = Brand.short
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.toolbar = NSToolbar(identifier: "Editor")
+        w.toolbarStyle = .unified
         w.titleVisibility = .hidden
         w.titlebarAppearsTransparent = true
         w.titlebarSeparatorStyle = .none
-        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
     }
 
     var body: some View {
@@ -386,9 +402,18 @@ struct EditorView: View {
                 .navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 320)
         } detail: {
             VStack(spacing: 0) {
-                ScrollView {
-                    page.padding(.horizontal, 24).padding(.vertical, 20)
-                        .frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        // The first card's top lines up with the search field's.
+                        page.id("top").padding(.horizontal, 24).padding(.top, 2).padding(.bottom, 20)
+                            .frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
+                            .environment(\.searchTarget, target)
+                    }
+                    .onChange(of: jump?.token) { _, _ in
+                        guard let id = jump?.id else { return }
+                        // After the page has switched, so the anchor exists.
+                        DispatchQueue.main.async { show(id, with: proxy) }
+                    }
                 }
                 .background(GeometryReader { g in
                     Color.clear.onAppear { width = g.size.width }.onChange(of: g.size.width) { _, w in width = w }
@@ -404,25 +429,45 @@ struct EditorView: View {
         .frame(minWidth: 900, minHeight: 600)
         .onAppear { takeRequest() }
         .onReceive(NotificationCenter.default.publisher(for: .showTab)) { _ in takeRequest() }
+        .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in takeRequest() }
+    }
+
+    // MARK: Search
+
+    private var found: [SearchItem] { SearchItem.matches(query, in: SearchItem.all(engine)) }
+
+    private func go(_ item: SearchItem) {
+        picked = item.id
+        tab = item.tab
+        jump = (item.target, UUID())
+    }
+
+    private func show(_ id: String, with proxy: ScrollViewProxy) {
+        guard !id.hasPrefix("page.") else {
+            withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo("top", anchor: .top) }
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(id, anchor: .center) }
+        target = id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if target == id { target = nil } }
     }
 
     private func takeRequest() {
         if let wanted = EditorRequest.tab { tab = wanted; EditorRequest.tab = nil }
+        if EditorRequest.focusSearch { EditorRequest.focusSearch = false; searching = true }
     }
 
     // MARK: Sidebar
 
     private var sidebar: some View {
-        List(selection: Binding(get: { Optional(tab) }, set: { if let t = $0 { tab = t } })) {
-            ForEach(EditorTab.allCases) { t in
-                Label(t.rawValue, systemImage: t.symbol)
-                    .font(.system(size: 14))
-                    .badge(t == .recordings ? engine.recordings.count : 0)
-                    .tag(t)
-            }
+        Group {
+            if query.trimmingCharacters(in: .whitespaces).isEmpty { pages } else { results }
         }
         .listStyle(.sidebar)
-        .overlay(alignment: .topLeading) { appName }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            SidebarSearchField(text: $query, focused: $searching) { if let first = found.first { go(first) } }
+                .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 8)
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // The live controls, as keys: the things to reach for while talking.
             VStack(spacing: 0) {
@@ -437,19 +482,54 @@ struct EditorView: View {
                 }
                 status.padding(.top, 14)
             }
-            .padding(.horizontal, 12).padding(.bottom, 12)
+            .padding(.horizontal, 10).padding(.bottom, 12)
+        }
+        .overlay(alignment: .topLeading) { appName }
+        .background(WindowChromeReader(chrome: $chrome))
+    }
+
+    private var pages: some View {
+        List(selection: Binding(get: { Optional(tab) }, set: { if let t = $0 { tab = t } })) {
+            ForEach(EditorTab.allCases) { t in
+                HStack(spacing: 9) { SidebarIcon(tab: t); Text(t.rawValue) }
+                    .font(.system(size: 14))
+                    .padding(.vertical, 3)
+                    .badge(t == .recordings ? engine.recordings.count : 0)
+                    .tag(t)
+            }
         }
     }
 
-    /// The app's name in the title bar, beside the window buttons.
-    private var appName: some View {
-        GeometryReader { g in
-            Text(Brand.short).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                .frame(height: max(g.safeAreaInsets.top, 28))
-                .padding(.leading, 80)
+    private var results: some View {
+        let items = found
+        return List(selection: Binding(get: { picked }, set: { id in
+            if let item = items.first(where: { $0.id == id }) { go(item) }
+        })) {
+            if items.isEmpty {
+                Text("No matches").font(.system(size: 14)).foregroundStyle(.secondary).padding(.vertical, 5)
+            }
+            ForEach(items) { item in
+                HStack(spacing: 9) {
+                    SidebarIcon(tab: item.tab)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.title).font(.system(size: 14)).lineLimit(1)
+                        Text(item.place).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .padding(.vertical, 3)
+                .tag(item.id)
+            }
         }
-        .ignoresSafeArea(edges: .top)
-        .allowsHitTesting(false)
+    }
+
+    /// The app's name, level with the window buttons and just past them.
+    private var appName: some View {
+        Text(Brand.short).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            .frame(height: chrome.buttonsMidY * 2)
+            .padding(.leading, chrome.buttonsMaxX + 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 
     /// What the mic is doing right now. Always on screen, whichever page is open.
@@ -558,13 +638,13 @@ struct EditorView: View {
                 case .recordings:
                     RecordingsView()
                 case .settings:
-                    VStack(spacing: 8) { SectionLabel(text: "Microphone priority"); MicOrderCard() }
+                    VStack(spacing: 8) { SectionLabel(text: "Microphone priority"); MicOrderCard().searchAnchor("settings.priority") }
                     VStack(spacing: 8) { SectionLabel(text: "Microphone"); general }
                     VStack(spacing: 8) { SectionLabel(text: "Recordings"); recordingsFolder }
-                    VStack(spacing: 8) { SectionLabel(text: "Shortcuts"); shortcuts }
+                    VStack(spacing: 8) { SectionLabel(text: "Shortcuts"); shortcuts.searchAnchor("settings.shortcuts") }
                     VStack(spacing: 8) { SectionLabel(text: "App"); app }
                     VStack(spacing: 8) { SectionLabel(text: "Updates"); updates }
-                    VStack(spacing: 8) { SectionLabel(text: "Automation"); CLIToolView() }
+                    VStack(spacing: 8) { SectionLabel(text: "Automation"); CLIToolView().searchAnchor("settings.cli") }
                 }
             }
         }
@@ -580,6 +660,7 @@ struct EditorView: View {
                     Button("Change…") { engine.chooseRecordingsFolder() }.buttonStyle(PillButtonStyle())
                 }
             }
+            .searchAnchor(row: "settings.folder")
         }
     }
 
@@ -593,10 +674,12 @@ struct EditorView: View {
                         .disabled(updater.busy || updater.state == .notSetUp)
                 }
             }
+            .searchAnchor(row: "settings.version")
             RowDivider()
             Row(title: "Check automatically", caption: "Checks once a day. Nothing about you is sent.") {
                 Toggle("Check automatically", isOn: $engine.autoUpdate).labelsHidden().toggleStyle(.switch)
             }
+            .searchAnchor(row: "settings.autoUpdate")
         }
     }
 
@@ -623,20 +706,23 @@ struct EditorView: View {
                     }
                 }
             }
+            .searchAnchor(row: "settings.icon")
             RowDivider()
             Row(title: "Show in Dock", caption: "Also while this window is closed.") {
                 Toggle("Show in Dock", isOn: $engine.showInDock).labelsHidden().toggleStyle(.switch)
             }
+            .searchAnchor(row: "settings.dock")
             RowDivider()
             Row(title: "Start at login") {
                 Toggle("Start at login", isOn: Binding(get: { engine.launchAtLogin }, set: { engine.setLaunchAtLogin($0) })).labelsHidden().toggleStyle(.switch)
             }
+            .searchAnchor(row: "settings.login")
         }
     }
 
     private var general: some View {
         Card {
-            MicNameRow()
+            MicNameRow().searchAnchor(row: "settings.name")
             RowDivider()
             Row(title: "Real microphone", caption: "Each microphone keeps its own sound.") {
                 Menu {
@@ -655,20 +741,23 @@ struct EditorView: View {
                 .menuStyle(.button).buttonStyle(PillButtonStyle()).fixedSize()
                 .accessibilityLabel("Real microphone")
             }
+            .searchAnchor(row: "settings.input")
             if let g = engine.micGain {
                 RowDivider()
-                Row(title: "Mic gain", caption: "Set on the \(engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "microphone") itself.") { EmptyView() }
+                Row(title: "Mic gain", caption: "Set on the \(engine.inputs.first(where: { $0.uid == engine.inputUID })?.name ?? "microphone") itself.") { EmptyView() }.searchAnchor(row: "settings.gain")
                 SliderRow(label: "Gain", value: String(format: "%.1f dB", g.db),
                           binding: Binding(get: { engine.micGain?.db ?? g.db }, set: { engine.setMicGain($0) }), range: g.min...g.max).padding(.bottom, 6)
                 RowDivider()
                 Row(title: "Lock gain", caption: engine.gainLockDB != nil ? String(format: "Held at %.1f dB.", engine.gainLockDB ?? g.db) : "Puts the gain back if another app moves it.") {
                     Toggle("Lock gain", isOn: Binding(get: { engine.gainLockDB != nil }, set: { engine.setGainLock($0) })).labelsHidden().toggleStyle(.switch)
                 }
+                .searchAnchor(row: "settings.lockGain")
             }
             RowDivider()
             Row(title: "Use as the Mac's microphone", caption: "Switches back if AirPods take over.") {
                 Toggle("Use as the Mac's microphone", isOn: Binding(get: { engine.isSystemMicrophone }, set: { engine.setSystemMicrophone($0) })).labelsHidden().toggleStyle(.switch)
             }
+            .searchAnchor(row: "settings.system")
             if let ms = engine.lastWakeMs {
                 RowDivider()
                 Row(title: "Last wake-up", caption: "How long the mic took to open.") {
@@ -767,6 +856,7 @@ struct DynamicsView: View {
             Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
+        .searchAnchor(row: "sound.dynamics.\(id)")
     }
 
     var body: some View {
@@ -883,9 +973,9 @@ enum Render {
         }
         // The whole window, title bar included, built the way the app builds it.
         for dark in [false, true] {
-            for (name, tab) in [("window-sound", EditorTab.sound), ("window-recordings", EditorTab.recordings)] {
+            for (name, tab, query) in [("window-sound", EditorTab.sound, ""), ("window-recordings", EditorTab.recordings, ""), ("window-search", EditorTab.settings, "mic")] {
                 engine.cueSeconds = 0; engine.selection = nil
-                let host = NSHostingController(rootView: EditorView(tab: tab).environmentObject(engine))
+                let host = NSHostingController(rootView: EditorView(tab: tab, query: query).environmentObject(engine))
                 let w = NSWindow(contentViewController: host)
                 EditorView.configure(w)
                 w.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

@@ -69,7 +69,7 @@ struct ToneCard: View {
     var body: some View {
         Card {
             CardHeader(title: "Tone")
-            ForEach(ToneControl.all) { ToneRow(control: $0) }
+            ForEach(ToneControl.all) { ToneRow(control: $0).searchAnchor(row: "sound.tone.\($0.id)") }
             Spacer().frame(height: 10)
         }
         .help("Each control moves a band in the equalizer.")
