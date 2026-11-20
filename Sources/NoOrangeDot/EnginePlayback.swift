@@ -9,13 +9,13 @@ extension Engine {
     /// Where the playhead is, in seconds. Read inside `Live(meters)` so it moves while playing.
     var playheadSeconds: Double { auditioning != nil ? meters.auditionProgress * player.duration : cueSeconds }
 
-    /// Plays from the start of the selection, or from where the playhead was left.
+    /// Plays from where the playhead was left. With a selection, only the selection plays.
     @MainActor func play(_ r: Recording, from second: Double? = nil) {
         guard !recording else { note("Stop recording to play a take."); return }
         ReferenceVoice.shared.stop()
         if playerTake != r.url, auditioning != r.url { selection = nil; cueSeconds = 0 }
         playerTake = r.url
-        let start = second ?? selection?.lowerBound ?? (cueSeconds < r.seconds - 0.05 ? cueSeconds : 0)
+        let start = second ?? Self.startPoint(cue: cueSeconds, selection: selection, length: r.seconds)
         stopAudition()
         player.loop = auditionLoop
         // A raw take plays through the current sound; one saved without it plays as saved.
@@ -24,6 +24,12 @@ extension Engine {
         playerPaused = false
         auditioning = r.url
         pushDSP()
+    }
+
+    /// The playhead if it is inside the selection, else the selection's start. The playhead at the very end starts over.
+    static func startPoint(cue: Double, selection: ClosedRange<Double>?, length: Double) -> Double {
+        if let selection { return cue >= selection.lowerBound && cue < selection.upperBound - 0.05 ? cue : selection.lowerBound }
+        return cue < length - 0.05 ? cue : 0
     }
 
     @MainActor func togglePlay() {
@@ -53,10 +59,13 @@ extension Engine {
         if wasPlaying { MainActor.assumeIsolated { play(r) } }
     }
 
-    /// A selection shorter than 50 ms is treated as a click, not a range.
-    func setSelection(_ range: ClosedRange<Double>?) {
+    /// A selection shorter than 50 ms is treated as a click, not a range. Pass `live: false` while dragging, so the
+    /// player keeps its old range until the drag ends instead of jumping under the pointer.
+    func setSelection(_ range: ClosedRange<Double>?, live: Bool = true) {
         selection = range.flatMap { $0.upperBound - $0.lowerBound >= 0.05 ? $0 : nil }
-        if auditioning != nil { player.setRange(selection) }
+        guard live, auditioning != nil else { return }
+        player.setRange(selection)
+        if let s = selection, !(s.lowerBound..<s.upperBound).contains(player.seconds) { player.seek(to: s.lowerBound) }
     }
 
     func stopAudition() {

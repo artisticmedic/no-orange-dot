@@ -73,7 +73,8 @@ struct SavedChip: View {
             Button(action: showRecordings) {
                 HStack(spacing: 7) {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Saved \(Recording.clock(take.seconds)) to Recordings").font(.system(size: 13, weight: .medium))
+                    Text("Saved \(Recording.clock(take.seconds))").font(.system(size: 13, weight: .medium))
+                    Spacer(minLength: 0)
                 }
                 .padding(.leading, 10).padding(.trailing, 4).frame(height: 26).contentShape(Rectangle())
             }
@@ -91,7 +92,7 @@ struct SavedChip: View {
     }
 }
 
-/// A symbol button sized to sit inside the top bar's chips.
+/// A symbol button sized to sit inside a chip.
 struct BarIcon: View {
     let symbol: String
     let label: String

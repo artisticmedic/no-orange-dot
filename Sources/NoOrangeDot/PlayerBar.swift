@@ -30,7 +30,7 @@ struct PlayerBar: View {
             .focused($focused)
             .onKeyPress(phases: .down) { press in key(press) }
             .task(id: take.url) { peaks = await Self.peaks(for: take.raw ?? take.url) }
-            .help("Click the waveform to move the playhead, or drag across it to select a part to loop or save. Space plays or pauses. Arrow keys move a second, or five with Shift. I and O set the selection's ends, L loops, Escape clears.")
+            .help("Drag across the waveform to play only that part. Click outside it to play the whole recording again. Space plays or pauses. Arrow keys move a second, or five with Shift. I and O set the selection's ends, L loops, Escape clears.")
         }
     }
 
@@ -92,7 +92,7 @@ struct PlayerBar: View {
             .contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-        .help(take.raw != nil ? "Choose a recording. This one plays through your current sound." : "Choose a recording. This one plays as it was saved.")
+        .help("Choose a recording")
         .accessibilityLabel("Recording in the player")
     }
 
@@ -214,20 +214,26 @@ struct WaveformView: View {
             return
         }
         switch current {
-        case .start: if let s = engine.selection { engine.setSelection(min(now, s.upperBound - 0.05)...s.upperBound) }
-        case .end: if let s = engine.selection { engine.setSelection(s.lowerBound...max(now, s.lowerBound + 0.05)) }
+        case .start: if let s = engine.selection { engine.setSelection(min(now, s.upperBound - 0.05)...s.upperBound, live: false) }
+        case .end: if let s = engine.selection { engine.setSelection(s.lowerBound...max(now, s.lowerBound + 0.05), live: false) }
         case .playhead: engine.seek(to: now)
         case .pending(let t0):
-            if abs(v.translation.width) > 3 { mode = .select(t0); engine.setSelection(min(t0, now)...max(t0, now)) }
-        case .select(let t0): engine.setSelection(min(t0, now)...max(t0, now))
+            if abs(v.translation.width) > 3 { mode = .select(t0); engine.setSelection(min(t0, now)...max(t0, now), live: false) }
+        case .select(let t0): engine.setSelection(min(t0, now)...max(t0, now), live: false)
         }
     }
 
     private func ended(_ v: DragGesture.Value, _ w: CGFloat) {
         switch mode {
-        case .pending(let t0): engine.seek(to: t0)
-        // A new selection plays from its start when something is already playing.
-        case .select, .start: if let s = engine.selection, engine.auditioning != nil { engine.seek(to: s.lowerBound) }
+        case .pending(let t0):
+            // A click outside the selection clears it. Inside, it moves the playhead within it.
+            if let s = engine.selection, !s.contains(t0) { engine.setSelection(nil) }
+            engine.seek(to: t0)
+        case .select, .start:
+            engine.setSelection(engine.selection)
+            // A new selection plays from its start when something is already playing.
+            if let s = engine.selection, engine.auditioning != nil { engine.seek(to: s.lowerBound) }
+        case .end: engine.setSelection(engine.selection)
         default: break
         }
         mode = nil

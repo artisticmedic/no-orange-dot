@@ -88,6 +88,15 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(again.systemMicrophone, true)
     }
 
+    func testPlaybackWithASelectionStartsInsideIt() {
+        XCTAssertEqual(Engine.startPoint(cue: 3, selection: 1.7...4.4, length: 5), 3)
+        XCTAssertEqual(Engine.startPoint(cue: 0.5, selection: 1.7...4.4, length: 5), 1.7)
+        XCTAssertEqual(Engine.startPoint(cue: 4.8, selection: 1.7...4.4, length: 5), 1.7)
+        XCTAssertEqual(Engine.startPoint(cue: 4.4, selection: 1.7...4.4, length: 5), 1.7)
+        XCTAssertEqual(Engine.startPoint(cue: 2, selection: nil, length: 5), 2)
+        XCTAssertEqual(Engine.startPoint(cue: 5, selection: nil, length: 5), 0)
+    }
+
     func testOnlyAnInputThatJustConnectedCountsAsTakingOverTheMacsInput() {
         let now = Date()
         XCTAssertTrue(Engine.tookOver("airpods", listed: ["xlr"], connectedAt: nil, now: now), "not listed yet: it is connecting")

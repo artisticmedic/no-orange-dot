@@ -4,6 +4,8 @@ import SwiftUI
 struct KeyPalette {
     let light, face, deep, base: Color
     var text: Color = .white
+    /// How bright the lit top edge is.
+    var rim = 0.45
 
     static let red = KeyPalette(light: Color(red: 1.0, green: 0.38, blue: 0.33), face: Color(red: 0.92, green: 0.20, blue: 0.18),
                                 deep: Color(red: 0.74, green: 0.12, blue: 0.12), base: Color(red: 0.52, green: 0.07, blue: 0.08))
@@ -11,7 +13,8 @@ struct KeyPalette {
                                  deep: Color(red: 0.10, green: 0.34, blue: 0.78), base: Color(red: 0.05, green: 0.18, blue: 0.46))
     static func graphite(_ scheme: ColorScheme) -> KeyPalette {
         scheme == .dark
-            ? KeyPalette(light: Color(white: 0.40), face: Color(white: 0.30), deep: Color(white: 0.24), base: Color(white: 0.10))
+            ? KeyPalette(light: Color(white: 0.37), face: Color(white: 0.31), deep: Color(white: 0.26), base: Color(white: 0.19),
+                         text: Color(white: 0.9), rim: 0.16)
             : KeyPalette(light: Color(white: 1.0), face: Color(white: 0.93), deep: Color(white: 0.85), base: Color(white: 0.68), text: Color(white: 0.12))
     }
 }
@@ -37,7 +40,7 @@ struct KeyButtonStyle: ButtonStyle {
             .foregroundStyle(palette.text.opacity(depth > 0 ? 0.92 : 1))
             .frame(maxWidth: .infinity).frame(height: height)
             .background(shape.fill(face.shadow(.inner(color: .black.opacity(0.6 * sunk), radius: 6 * sunk, y: 5 * sunk))))
-            .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(depth > 0 ? 0 : 0.45), .clear], startPoint: .top, endPoint: .center), lineWidth: 1.5))
+            .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(depth > 0 ? 0 : palette.rim), .clear], startPoint: .top, endPoint: .center), lineWidth: 1.5))
             .brightness(pressed ? -0.06 : 0)
             // The face and its label are drawn as one picture, so the label cannot move apart from the face.
             .drawingGroup()

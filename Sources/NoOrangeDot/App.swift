@@ -117,13 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if editor == nil {
             let host = NSHostingController(rootView: EditorView().environmentObject(engine))
             host.sizingOptions = [.minSize]
-            // SwiftUI builds the toolbar and title from the view, so the window looks like any other Mac app's.
-            host.sceneBridgingOptions = [.toolbars, .title]
             let w = NSWindow(contentViewController: host)
-            // The page's name. The scene bridge changes it when another page is chosen.
-            w.title = EditorTab.sound.rawValue
-            w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-            w.toolbarStyle = .unified
+            EditorView.configure(w)
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.setContentSize(NSSize(width: 980, height: 700))
@@ -375,9 +370,20 @@ struct EditorView: View {
 
     private var maxWidth: CGFloat { tab == .sound ? 1180 : tab == .recordings ? 880 : 760 }
 
+    /// No toolbar and no title: the page runs to the top of the window, and the sidebar shows the app's name.
+    static func configure(_ w: NSWindow) {
+        w.title = Brand.short
+        w.titleVisibility = .hidden
+        w.titlebarAppearsTransparent = true
+        w.titlebarSeparatorStyle = .none
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+    }
+
     var body: some View {
-        NavigationSplitView {
-            sidebar.navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 320)
+        // The sidebar holds the live keys, so it never collapses.
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            sidebar.toolbar(removing: .sidebarToggle)
+                .navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 320)
         } detail: {
             VStack(spacing: 0) {
                 ScrollView {
@@ -392,11 +398,8 @@ struct EditorView: View {
                     PlayerBar().frame(maxWidth: maxWidth + 8).frame(maxWidth: .infinity)
                 }
             }
-            // Under the toolbar too, so the toolbar and the page are one surface.
             .background(Surface.page.ignoresSafeArea())
             .overlay(alignment: .top) { notice }
-            .navigationTitle(tab.rawValue)
-            .toolbar { toolbar }
         }
         .frame(minWidth: 900, minHeight: 600)
         .onAppear { takeRequest() }
@@ -419,18 +422,34 @@ struct EditorView: View {
             }
         }
         .listStyle(.sidebar)
+        .overlay(alignment: .topLeading) { appName }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // The live controls, as keys: the things to reach for while talking.
-            VStack(spacing: 8) {
+            VStack(spacing: 0) {
                 if engine.driverInstalled {
-                    HearMyselfKey()
-                    RecordKey()
-                    MuteButton(muted: engine.muted) { engine.muted.toggle() }
+                    VStack(spacing: 8) {
+                        HearMyselfKey()
+                        RecordKey()
+                        if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
+                    }
+                    // Mute stands apart from the keys that start something.
+                    MuteButton(muted: engine.muted) { engine.muted.toggle() }.padding(.top, 20)
                 }
-                status.padding(.top, 4)
+                status.padding(.top, 14)
             }
             .padding(.horizontal, 12).padding(.bottom, 12)
         }
+    }
+
+    /// The app's name in the title bar, beside the window buttons.
+    private var appName: some View {
+        GeometryReader { g in
+            Text(Brand.short).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                .frame(height: max(g.safeAreaInsets.top, 28))
+                .padding(.leading, 80)
+        }
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
     }
 
     /// What the mic is doing right now. Always on screen, whichever page is open.
@@ -443,6 +462,14 @@ struct EditorView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12).padding(.top, 12)
+            if engine.original {
+                Button { engine.original = false } label: {
+                    Label("Processing off", systemImage: "exclamationmark.circle").font(.system(size: 13, weight: .medium))
+                }
+                .buttonStyle(.plain).foregroundStyle(.orange)
+                .padding(.horizontal, 12).padding(.top, 6)
+                .help("Hear Without Processing is on, for apps using the mic too. Click to turn your sound back on.")
+            }
             if let note = engine.directUseNote {
                 Text(note).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 12).padding(.top, 6)
@@ -500,21 +527,6 @@ struct EditorView: View {
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
         .help("Change the microphone").accessibilityLabel("Microphone")
-    }
-
-    // MARK: Toolbar
-
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            if engine.driverInstalled {
-                if engine.original {
-                    Button { engine.original = false } label: { Label("Processing off", systemImage: "exclamationmark.circle") }
-                        .labelStyle(.titleAndIcon).foregroundStyle(.orange)
-                        .help("Hear Without Processing is on, for apps using the mic too. Click to turn your sound back on.")
-                }
-                if let take = engine.justSaved, !engine.recording { SavedChip(take: take) { tab = .recordings } }
-            }
-        }
     }
 
     @ViewBuilder private var notice: some View {
@@ -869,15 +881,13 @@ enum Render {
                 print(url.path)
             }
         }
-        // The whole window, title bar and toolbar included, built the way the app builds it.
+        // The whole window, title bar included, built the way the app builds it.
         for dark in [false, true] {
             for (name, tab) in [("window-sound", EditorTab.sound), ("window-recordings", EditorTab.recordings)] {
                 engine.cueSeconds = 0; engine.selection = nil
                 let host = NSHostingController(rootView: EditorView(tab: tab).environmentObject(engine))
-                host.sceneBridgingOptions = [.toolbars, .title]
                 let w = NSWindow(contentViewController: host)
-                w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-                w.toolbarStyle = .unified
+                EditorView.configure(w)
                 w.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 w.setContentSize(NSSize(width: Double(ProcessInfo.processInfo.environment["NOD_RENDER_WIDTH"] ?? "") ?? 980,
                                         height: Double(ProcessInfo.processInfo.environment["NOD_RENDER_HEIGHT"] ?? "") ?? 700))

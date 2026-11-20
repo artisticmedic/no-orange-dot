@@ -133,16 +133,16 @@ final class AuditionPlayer {
         let fade = Float(Self.fadeFrames)
         let lo = rangeStart, hi = rangeEnd
         var pos = position
+        // A selection keeps playback inside it: a playhead before it jumps to its start.
+        if pos < lo { pos = lo; fadeIn = Self.fadeFrames }
         for i in 0..<n {
-            // The range only bounds playback that starts inside it; a seek past its end plays on to the end of the file.
-            let end = pos < hi ? hi : count
-            if pos >= end {
-                if loop { pos = end == hi ? lo : 0; fadeIn = Self.fadeFrames }
+            if pos >= hi {
+                if loop { pos = lo; fadeIn = Self.fadeFrames }
                 else { finished = true; for k in i..<n { workL[k] = 0; workR[k] = 0 }; break }
             }
             var g: Float = 1
             if fadeIn > 0 { g = 1 - Float(fadeIn) / fade; fadeIn -= 1 }
-            let remaining = end - pos
+            let remaining = hi - pos
             if remaining < Self.fadeFrames { g *= Float(remaining) / fade }
             if fadingOut { g *= 1 - Float(i) / Float(n) }
             workL[i] = left[pos] * g; workR[i] = right[pos] * g
